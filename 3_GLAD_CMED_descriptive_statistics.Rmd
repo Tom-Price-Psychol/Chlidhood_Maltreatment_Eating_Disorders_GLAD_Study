@@ -1,0 +1,4847 @@
+---
+title: "Maltreatment_Project_TP"
+author: "Tom Price"
+date: "16/04/2021"
+output: html_document 
+---
+
+# Set markdown options
+```{r setup }
+knitr::opts_chunk$set(echo = TRUE,
+                      comment=NA,
+                      prompt=FALSE,
+                      cache=FALSE)
+```
+
+# Clear workspace
+```{r clear workspace}
+remove(list = ls())
+```
+
+Date
+```{r}
+date=Sys.Date()
+```
+
+
+## Install Packages
+```{r Install Packages }
+#install.packages("janitor")
+#install.packages("summarytools")
+#install.packages("psych")
+#install.packages("skimr")
+#install.packages("fastDummies")
+#install.packages("broom")
+#install.packages("polycor")
+#install.packages("corrplot")
+#install.packages("FSA")
+#install.packages("rcompanion")
+#install.packages("nnet")
+#install.packages("scales")
+#install.packages(patchwork)
+#install.packages("tidyverse")
+```
+
+## Load Packages
+```{r Load Packages }
+library(janitor)
+library(skimr)
+library(summarytools)
+library(psych)
+library(ggpubr)
+library(broom)
+library(FSA)
+library(corrplot)
+library(polycor)
+library(fastDummies)
+library(rcompanion) 
+library(gt)
+library(nnet)
+library(scales)
+library(rstatix)
+library(patchwork)
+library(tidyverse)
+```
+
+# ggplot theme
+Set up ggplot theme for the plots
+```{r ggplot theme}
+theme_personal <-  theme(
+    text = element_text(color = "black"),
+    axis.title = element_text(color = "black"),
+    axis.text = element_text(color = "black"),
+    axis.title.y = element_blank(), 
+    legend.background = element_blank(),
+    legend.box.background = element_blank(),
+    panel.background = element_blank(), 
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_line(
+      colour = "gray",
+      linetype = "dashed",
+      size = 0.2
+      ),
+    axis.ticks = element_blank()
+    )
+```
+
+# Read in clean data
+```{r Load clean data}
+cm.clean <- read_rds("../../data_clean/CMED_data2021-05-12.rds")
+dim(cm.clean)
+```
+
+# Data structure
+```{r Skim structure of the data}
+colnames(cm.clean)
+```
+
+# ED_hierarchical summary
+Check number of eating disorder cases
+```{r Total n of EDs}
+cm.clean %>%
+  freq(ED_hierarchical)
+```
+
+# Colour-blind palette
+```{r Colour-blind friendly palette }
+cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
+          "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+pallette_tom <- c(
+  "lightskyblue3",
+#  "lightgoldenrod1", 
+  "lightpink4",
+  "firebrick3", 
+  "orange1"
+  )
+```
+
+# Transform data to long format
+```{r Transform to long format}
+cm.clean.long <- cm.clean %>%
+  rowid_to_column("ID") %>%
+  select(
+    ID,
+    age,
+    sex,                                                        
+    gender_recode,
+    sexuality_binary,
+    ethnicity_binary,
+    education_binary,
+    relationship_binary,
+    employment,
+    dem_bmi_current,
+    audit.sum_score,
+    pcl6.sum_score,
+    gad7.sum_score,
+    phq9.sum_score,
+    wsas.sum_score,
+    ED_hierarchical_numeric,
+    ED_hierarchical,
+    CSA_unc,
+    CEA_unc,
+    CPA_unc,
+    CEN_unc,
+    CPN_unc,
+    Childhood_sexual_abuse_binary_numeric,
+    Childhood_sexual_abuse_binary,
+    Childhood_emotional_abuse_binary_numeric,
+    Childhood_emotional_abuse_binary, 
+    Childhood_physical_abuse_binary_numeric, 
+    Childhood_physical_abuse_binary,     
+    Childhood_emotional_neglect_binary_numeric,
+    Childhood_emotional_neglect_binary,   
+    Childhood_physical_neglect_binary_numeric, 
+    Childhood_physical_neglect_binary,      
+    Any_childhood_maltreatment_binary_numeric,
+    Any_childhood_maltreatment_binary,    
+    Any_childhood_maltreatment_count_numeric, 
+    Any_childhood_maltreatment_count
+    ) %>%
+  pivot_longer(
+    cols = c(
+      CSA_unc,
+      CEA_unc,
+      CPA_unc,
+      CEN_unc,
+      CPN_unc),
+    names_to = "Maltreatment",
+    values_to = "Endorsement"
+    ) %>%
+  pivot_longer(
+    cols = c(
+      Childhood_sexual_abuse_binary,
+      Childhood_emotional_abuse_binary,
+      Childhood_physical_abuse_binary,
+      Childhood_emotional_neglect_binary,
+      Childhood_physical_neglect_binary),
+    names_to = "Childhood_Maltreatment",
+    values_to = "Endorsed"
+   ) 
+
+cm.clean.long 
+
+```
+
+# Plot - response distribution for maltreatment variables in the sample
+Plotting percentage of each group reporting maltreatment
+```{r Maltreatment by eating disorders,  fig.height=10, fig.width=10}
+cm_endorsement_binary_plot <- cm.clean.long %>% 
+  mutate(
+    Maltreatment_label =
+      recode_factor(Childhood_Maltreatment,
+        "Childhood_emotional_neglect_binary" = "Self-reported childhood emotional neglect (Never & rarely true)",                       
+        "Childhood_emotional_abuse_binary" = "Self-reported childhood emotional abuse (Very often, often, & sometimes true)",
+        "Childhood_physical_neglect_binary" = "Self-reported childhood physical neglect (Never & rarely true)",
+        "Childhood_physical_abuse_binary" = "Self-reported childhood physical abuse (Very often, often, & sometimes true)",
+        "Childhood_sexual_abuse_binary" = "Self-reported childhood sexual abuse (Very often, often, sometimes, & rarely true)"
+      )
+  ) %>%
+  ggplot(
+    aes(
+      y = ED_hierarchical,
+      fill = Endorsed
+      )
+    ) +
+  geom_bar(
+    position = "fill"
+    ) +
+  theme_light() +
+  theme(
+    legend.position= "none",
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank()
+    ) +
+  scale_fill_manual(values=c(
+    "gray75", "darkorchid2",
+    "gray75", "darkorchid2", 
+    "gray75", "darkorchid2", 
+    "gray75", "darkorchid2", 
+    "gray75", "darkorchid2")) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  facet_wrap(
+    facets = "Maltreatment_label",
+    nrow = 5) 
+
+cm_endorsement_binary_plot
+```
+
+```{r Save binar level plot}
+ggsave(
+  filename = paste0("cm_endorsement_binary",date,".png"),
+  plot = cm_endorsement_binary_plot,
+  device = "png", path = "../../plots/", 
+  width = 20,
+  height = 12,
+  units = "cm")
+```
+
+# Plot - maltreatment item endorsement (per item) in the sample
+Plotting percentage of each group reporting maltreatment
+```{r Maltreatment by eating disorders 5 levels,  fig.height=10, fig.width=10}
+cm_endorsement_5levels_plot <- cm.clean.long %>% 
+  mutate(
+    Maltreatment_label =
+      recode_factor(Maltreatment,
+        "CEN_unc" = "Self-reported childhood emotional neglect (Reverse coded)",
+        "CEA_unc" = "Self-reported childhood emotional abuse",
+        "CPN_unc" = "Self-reported childhood physical neglect (Reverse coded)",
+        "CPA_unc" = "Self-reported childhood physical abuse",
+        "CSA_unc" = "Self-reported childhood sexual abuse"
+      )
+  ) %>%
+  ggplot(
+    aes(
+      y = ED_hierarchical,
+      fill = Endorsement
+      )
+    ) +
+  geom_bar(
+    position = "fill"
+    ) +
+  theme_light() +
+  theme(
+    legend.position="bottom",
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank()
+    ) +
+  scale_fill_manual(values=c(cbp1)) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
+  facet_wrap(
+    facets = "Maltreatment_label",
+    nrow = 5) 
+
+cm_endorsement_5levels_plot
+```
+
+```{r Save 5 level plot}
+ggsave(
+  filename = paste0("cm_endorsement_5levels",date,".png"),
+  plot = cm_endorsement_5levels_plot,
+  device = "png", path = "../../plots/", 
+  width = 20,
+  height = 12,
+  units = "cm")
+```
+
+Distribution plots
+```{r Distribution plots, fig.height=12, fig.width=10}
+cm_endorsement_plots <-
+cm_endorsement_5levels_plot /
+  cm_endorsement_binary_plot
+
+cm_endorsement_plots
+```
+
+```{r Save cm_endorsement plots}
+ggsave(
+  filename = paste0("cm_endorsement_2plots",date,".png"),
+  plot = cm_endorsement_plots,
+  device = "png", path = "../../plots/", 
+  width = 20,
+  height = 26,
+  units = "cm")
+```
+
+#Generate mode function
+To use in descriptives analysis chunks
+```{r Mode function}
+mode_func <- function(x, na.rm = FALSE) {
+  if(na.rm){
+    x = x[!is.na(x)]
+  }
+
+  ux <- unique(x)
+  return(ux[which.max(tabulate(match(x, ux)))])
+}
+```
+
+# DESCRIPTIVES
+ANOVA: two assumptions were tested: normality, using visual inspection of histograms, and homoscedasticity, using the Levene’s test. Unable to test normality using the Shapiro Wilks Test due to large sample size across comparisons.
+
+If all assumptions were met, ANOVA was used to determine if differences between groups were significant. If significant (p < 0.05), Tukey’s multiple comparison tests were performed to determine which mean/s differed significantly from the rest. 
+
+If either both assumptions or only the normality assumption were violated, we performed the non-parametric equivalent of ANOVA: Kruskal-Wallis one-way ANOVA. If significant, Dunn’s post-hoc tests were carried out with bh-adjusted levels of significance. 
+
+If only homoscedasticity was violated, we performed Welch's unequal variances t-test. If significant, pairwise t-tests between all groups were calculated, with bh-adjusted levels of significance. 
+
+# Continuous variables
+
+## Table of comparison of continuous variables
+```{r Continuous variables table}
+#Continuous demographic variables to compare:
+
+#Create table
+numeric_table <- cm.clean %>% 
+  group_by(ED_hierarchical) %>%
+  summarise_at(
+    vars(
+      age,
+      dem_bmi_current,
+      phq9.sum_score,
+      gad7.sum_score,
+      pcl6.sum_score,
+      audit.sum_score,
+      wsas.sum_score
+      ),
+    .funs =
+      list(
+        ~mean(., na.rm = T),
+        ~sd(., na.rm = T),
+        mode = ~mode_func(., na.rm = T),
+        ~median(., na.rm = T),
+        quartile1 = ~quantile(., probs = 0.25, na.rm = T),
+        quartile3 = ~quantile(., probs = 0.75, na.rm = T),
+        ~min(., na.rm = T),
+        ~max(., na.rm = T),
+        missing = ~n_missing(.),
+        ~skew(., na.rm = T),
+        kurtosis = ~kurtosi(., na.rm = T)
+      )
+  )
+
+numeric_table
+```
+
+## Reshape continuous data table - make wide data long 
+```{r Continuous variables reshape table}
+numeric_table_reshaped <- numeric_table %>% 
+  gather(key, value, -ED_hierarchical) %>% 
+  separate(
+    key,
+    c("variable", "measure"),
+    sep = "_(?=[^_]+$)" # separate by last _
+    ) %>% #separates the column 'key' into 'variable' and 'column' measure, indicated as they are separated by _
+  mutate(measure = factor(
+    x = measure,
+    levels =  c( # this is the order I want my columns to appear in
+     "missing",
+     "min",
+     "max",
+     "mean", 
+     "median",
+     "quartile1",
+     "quartile3",
+     "mode",
+     "sd",
+     "skew",
+     "kurtosis"
+    ))) %>% 
+  spread(measure, value) #spread to get mean, mode and median column etc
+
+
+numeric_table_reshaped
+```
+
+## Reduce table to necessary and round
+```{r Continuous reduce table}
+Variable_continuous_ordered <- c(
+  "Age",
+  "BMI [kg/m2]",
+  "PCL total score",
+  "PHQ9 total score",
+  "GAD7 total score",
+  "AUDIT total score",
+  "WSAS total score"
+)
+
+
+numeric_table_reshaped_reduced <- numeric_table_reshaped %>%
+  mutate(
+    "Variable" = fct_recode(
+      .f = variable,
+      "Age" = "age",
+      "BMI [kg/m2]" = "dem_bmi_current",
+      "PCL-6 total score" = "pcl6.sum_score",
+      "PHQ-9 total score" = "phq9.sum_score",
+      "GAD-7 total score" = "gad7.sum_score",
+      "AUDIT total score" = "audit.sum_score",
+      "WSAS total score" = "wsas.sum_score",
+),
+    "Variable" = fct_relevel(
+      .f = Variable,
+      Variable_continuous_ordered
+      ),
+    "Min" = round(min, digits = 1),
+    "Max" = round(max, digits = 1),
+    "Mean" = round(mean, digits = 1),
+    "SD" = round(sd, digits = 1)
+  ) %>%
+  select(
+    "Eating disorder" = ED_hierarchical,
+    Variable,
+    "Missing" = missing,
+    Min,
+    Mean,
+    SD,
+    Max
+  ) %>%
+  arrange(Variable) %>%
+  arrange(`Eating disorder`)
+  
+
+numeric_table_reshaped_reduced
+```
+
+## Reduce table to necessary and round
+Nonparametric
+```{r Continuous reduce table and round}
+Variable_continuous_ordered <- c(
+  "Age",
+  "BMI [kg/m2]",
+  "PCL-6 total score",
+  "PHQ-9 total score",
+  "GAD-7 total score",
+  "AUDIT total score",
+  "WSAS total score"
+)
+
+
+numeric_table_reshaped_reduced_nonparametric <- numeric_table_reshaped %>%
+  mutate(
+    "Variable" = fct_recode(
+      .f = variable,
+      "Age" = "age",
+      "BMI [kg/m2]" = "dem_bmi_current",
+      "PCL-6 total score" = "pcl6.sum_score",
+      "PHQ-9 total score" = "phq9.sum_score",
+      "GAD-7 total score" = "gad7.sum_score",
+      "AUDIT total score" = "audit.sum_score",
+      "WSAS total score" = "wsas.sum_score",
+),
+    "Variable" = fct_relevel(
+      .f = Variable,
+      Variable_continuous_ordered
+      ),
+    "1. Quartile" = round(quartile1, digits = 1),
+    "Median" = round(median, digits = 1),
+    "3. Quartile" = round(quartile3, digits = 1)
+  ) %>%
+  select(
+    "Eating disorder" = ED_hierarchical,
+    Variable,
+    "1. Quartile",
+    "Median",
+    "3. Quartile",
+  ) %>%
+  arrange(Variable) %>%
+  arrange(`Eating disorder`) %>%
+  mutate(Value = paste(format(round(`Median`,1), nsmall = 1), " (",format(round(`1. Quartile`,1), nsmall = 1),", ", format(round(`3. Quartile`,1), nsmall = 1),")", sep = "")) %>%
+  select(
+    "Eating disorder",
+    "Variable",
+    "Value") %>%
+  pivot_wider(
+   names_from = "Eating disorder",
+    values_from = Value
+   )
+  
+
+numeric_table_reshaped_reduced_nonparametric
+```
+
+## Reduce table to necessary and round
+Nonparametric
+```{r Median nonparametric differences}
+numeric_table_reshaped_reduced_nonparametric_differences <- numeric_table_reshaped %>%
+  mutate(
+    "Variable" = fct_recode(
+      .f = variable,
+      "Age" = "age",
+      "BMI [kg/m2]" = "dem_bmi_current",
+      "PCL-6 total score" = "pcl6.sum_score",
+      "PHQ-9 total score" = "phq9.sum_score",
+      "GAD-7 total score" = "gad7.sum_score",
+      "AUDIT total score" = "audit.sum_score",
+      "WSAS total score" = "wsas.sum_score",
+),
+    "Variable" = fct_relevel(
+      .f = Variable,
+      Variable_continuous_ordered
+      ),
+    "Median" = round(median, digits = 1)
+  ) %>%
+  select(
+    "Eating disorder" = ED_hierarchical,
+    Variable,
+    "Median",
+  ) %>%
+  arrange(Variable) %>%
+  arrange(`Eating disorder`) %>%
+  pivot_wider(
+   names_from = "Eating disorder",
+    values_from = "Median") %>%
+  mutate(
+    "Anx/Dep vs. AN" = format(round(`Anxiety/depression`-`Anorexia nervosa`,1), nsmall = 1),
+    "Anx/Dep vs. BN" = format(round(`Anxiety/depression`-`Bulimia nervosa`,1), nsmall = 1),
+    "Anx/Dep vs. BED" = format(round(`Anxiety/depression`-`Binge-eating disorder`,1), nsmall = 1),
+    "AN vs. BN" = format(round(`Anorexia nervosa`-`Bulimia nervosa`,1), nsmall = 1),
+    "AN vs. BED" = format(round(`Anorexia nervosa`-`Binge-eating disorder`,1), nsmall = 1),
+    "BN vs. BED" = format(round(`Bulimia nervosa`-`Binge-eating disorder`,1), nsmall = 1)
+    )
+  
+numeric_table_reshaped_reduced_nonparametric_differences
+```
+
+
+
+## Final descriptive table (continuous variables)
+```{r Continuous GT table}
+final_descr_table <- numeric_table_reshaped %>% 
+  gt(rowname_col = "eating_disorder_status",
+     groupname_col = "variable") %>% 
+  fmt_number(columns = vars(kurtosis, max, mean, sd, median,  min, mode, skew), decimals = 2) %>%
+  tab_header(
+    title = "Continuous variables"
+  )
+
+final_descr_table
+```
+
+#Confirm levels of Final ED Factor ('No ED = 0')
+```{r}
+str(cm.clean$ED_hierarchical)
+levels(cm.clean$ED_hierarchical)
+```
+
+# CONTINUOUS VARIABLES
+
+## Normality
+Test variables for normality graphically
++++CH: add these two plots for all continuous variables
+
+age, dem_bmi_current, phq9.sum_score, gad7.sum_score, pcl6.sum_score, wsas.sum_score, audit.sum_score
+
+Age normality plots
+```{r age Normality}
+age_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample = age)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "Age", subtitle = "A. QQ plot") + # Change label
+  xlab("Theoretical distribution") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+age_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x = age)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("Age [years]") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+age_plot <- age_qqplot + age_histogram
+age_plot
+```
+
+BMI normality plots
+```{r dem_bmi_current Normality}
+dem_bmi_current_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample = dem_bmi_current)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "Body mass index", subtitle = "A. QQ plot") + # Change label
+  xlab("Theoretical distribution") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+dem_bmi_current_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x = dem_bmi_current)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("Body mass index [kg/m2]") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+dem_bmi_current_plot <- dem_bmi_current_qqplot + dem_bmi_current_histogram
+dem_bmi_current_plot
+```
+
+PHQ-9 normality plots
+```{r phq9.sum_score Normality}
+phq9.sum_score_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample = phq9.sum_score)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "PHQ-9 (Depression Symptoms)", subtitle = "A. QQ plot") + # Change label
+  xlab("Total score") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+phq9.sum_score_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x = phq9.sum_score)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("PHQ-9 Total Score") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+phq9.sum_score_plot <- phq9.sum_score_qqplot + phq9.sum_score_histogram
+phq9.sum_score_plot
+```
+
+GAD-7 normality plots
+```{r gad7.sum_score Normality}
+gad7.sum_score_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample = gad7.sum_score)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "GAD-7 (Anxiety Symptoms)", subtitle = "A. QQ plot") + # Change label
+  xlab("Total score") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+gad7.sum_score_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x = gad7.sum_score)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("GAD-7 Total Score") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+gad7.sum_score_plot <- gad7.sum_score_qqplot + gad7.sum_score_histogram
+gad7.sum_score_plot
+```
+
+PCL-6 normality plots
+```{r pcl6.sum_score Normality}
+pcl6.sum_score_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample = pcl6.sum_score)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "PCL-6 (PTSD Symptoms)", subtitle = "A. QQ plot") + # Change label
+  xlab("Total score") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+pcl6.sum_score_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x = pcl6.sum_score)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("PCL-6 Total Score") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+pcl6.sum_score_plot <- pcl6.sum_score_qqplot + pcl6.sum_score_histogram
+pcl6.sum_score_plot
+```
+
+AUDIT normality plots
+```{r  audit.sum_score Normality}
+ audit.sum_score_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample =  audit.sum_score)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "AUDIT (Alcohol Use)", subtitle = "A. QQ plot") + # Change label
+  xlab("Total score") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+ audit.sum_score_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x =  audit.sum_score)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("AUDIT Total Score") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+ audit.sum_score_plot <-  audit.sum_score_qqplot +  audit.sum_score_histogram
+ audit.sum_score_plot
+```
+
+WSAS normality plots
+```{r wsas.sum_score Normality}
+wsas.sum_score_qqplot <- cm.clean %>%
+  ggplot(mapping = aes(sample = wsas.sum_score)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "WSAS (Functional Impairment)", subtitle = "A. QQ plot") + # Change label
+  xlab("Total score") + # Change label and unit
+  ylab("Sample") +
+  theme_minimal()
+
+wsas.sum_score_histogram <- cm.clean %>%
+  ggplot(mapping = aes(x = wsas.sum_score)) +
+  geom_histogram() +
+  ggtitle(label = " ", subtitle = "B. Histogram") +
+  xlab("WSAS Total Score") + # Change label and unit
+  ylab("Count") +
+  theme_minimal()
+
+wsas.sum_score_plot <- wsas.sum_score_qqplot + wsas.sum_score_histogram
+wsas.sum_score_plot
+```
+plot_spacer()
+
+## Save Normality Plots
+```{r descriptives_continuous_plots}
+descriptives_continuous_plots <-
+  (age_plot | dem_bmi_current_plot) /
+  (phq9.sum_score_plot | gad7.sum_score_plot) /
+  (pcl6.sum_score_plot | wsas.sum_score_plot) +
+(plot_layout(guides = 'collect') )
+
+descriptives_continuous_plots
+```
+
+
+```{r age_dem_bmi_current_phq9.sum_score_plot ggsave}
+ggsave(
+  paste0("descriptives_continuous_plots", date, ".png"),
+  plot = descriptives_continuous_plots,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 22, # play around with width 
+  height = 20, # and height
+  units = "cm",
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
+
+
+
+# Continuous variabels - box plots
+
+## age: Boxplot
+```{r age by ED_hierarchical boxplot}
+age_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = age,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("Self-reported age [years]") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+age_ED_plot
+```
+
+## BMI: Boxplot
+```{r dem_bmi_current by ED_hierarchical boxplot}
+dem_bmi_current_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = dem_bmi_current,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("Body mass index [kg/m2]") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+dem_bmi_current_ED_plot
+```
+
+## PHQ-9: Boxplot
+```{r phq9.sum_score by ED_hierarchical boxplot}
+phq9.sum_score_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = phq9.sum_score,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("PHQ-9 Total Score") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+phq9.sum_score_ED_plot
+```
+
+## GAD-7: Boxplot
+```{r gad7.sum_score by ED_hierarchical boxplot}
+gad7.sum_score_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = gad7.sum_score,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("GAD-7 Total Score") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+gad7.sum_score_ED_plot
+```
+
+## PCL-6: Boxplot
+```{r pcl6.sum_score by ED_hierarchical boxplot}
+pcl6.sum_score_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = pcl6.sum_score,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("PCL-6 Total Score") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+pcl6.sum_score_ED_plot
+```
+
+## AUDIT: Boxplot
+```{r audit.sum_score by ED_hierarchical boxplot}
+audit.sum_score_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = audit.sum_score,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("AUDIT Total Score") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+audit.sum_score_ED_plot
+```
+
+## WSAS: Boxplot
+```{r wsas.sum_score by ED_hierarchical boxplot}
+wsas.sum_score_ED_plot <- cm.clean %>%
+  ggplot(mapping = aes(
+    x = ED_hierarchical,
+    y = wsas.sum_score,
+    colour = ED_hierarchical)) +
+  geom_boxplot() +
+  xlab("") +
+  ylab("WSAS Total Score") +
+  labs(colour = "Eating disorder") +
+  scale_colour_manual(values = pallette_tom) +
+  theme_minimal()
+
+wsas.sum_score_ED_plot
+```
+
+
+Merge boxplots together
+```{r Combine boxplots plot}
+variable_by_ED_hierarchical_plot <-
+  (age_ED_plot | dem_bmi_current_ED_plot) /
+  (phq9.sum_score_ED_plot | gad7.sum_score_ED_plot) /
+  (pcl6.sum_score_ED_plot | wsas.sum_score_ED_plot) +
+  plot_layout(guides = 'collect')
+
+variable_by_ED_hierarchical_plot
+```
+
+
+```{r Combine boxplots ggsave file}
+ggsave(
+  paste0("variable_by_ED_hierarchical_plot", date, ".png"),
+  plot = variable_by_ED_hierarchical_plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 12, # play around with width 
+  height = 11, # and height
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
+
+
+
+
+# Group Differences - Descriptive Statistics (Continuous Variables)
+age, dem_bmi_current, phq9.sum_score, gad7.sum_score, pcl6.sum_score, wsas.sum_score, audit.sum_score
+
+## ANOVAS
+```{r ANOVAs}
+anova_age_ED <- cm.clean %>%
+  anova_test(age ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "Age", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(age ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(age ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_dem_bmi_current_ED <- cm.clean %>%
+  anova_test(dem_bmi_current ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "Body mass index", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(dem_bmi_current ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(dem_bmi_current ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_phq9.sum_score_ED <- cm.clean %>%
+  anova_test(phq9.sum_score ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "PHQ-9 sum score", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(phq9.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(phq9.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_gad7.sum_score_ED <- cm.clean %>%
+  anova_test(gad7.sum_score ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "GAD-7 sum score", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(gad7.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(gad7.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_pcl6.sum_score_ED <- cm.clean %>%
+  anova_test(pcl6.sum_score ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "PCL6 sum score", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(pcl6.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(pcl6.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_wsas.sum_score_ED <- cm.clean %>%
+  anova_test(wsas.sum_score ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "WSAS sum score", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(wsas.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(wsas.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_audit.sum_score_ED <- cm.clean %>%
+  anova_test(audit.sum_score ~ ED_hierarchical, detailed = TRUE) %>%
+  add_column(Outcome = "AUDIT sum score", .before = "Effect") %>%
+  add_column(Levene =
+               cm.clean %>%
+               levene_test(audit.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             ) %>%
+  add_column(KruskalWallis =
+               cm.clean %>%
+               kruskal_test(audit.sum_score ~ ED_hierarchical) %>%
+               select(p) %>%
+               pull()
+             )
+
+anova_overview <-
+  rbind(
+    anova_age_ED,
+    anova_dem_bmi_current_ED,
+    anova_phq9.sum_score_ED,
+    anova_gad7.sum_score_ED,
+    anova_pcl6.sum_score_ED,
+    anova_wsas.sum_score_ED,
+    anova_audit.sum_score_ED
+  )
+
+anova_overview
+```
+
+# Considering normality distributions and homoscedasticity for each continuous variable 
+Age: 
+Normality was checked by inspecting Q-Q plots and histogram. Age as deemed to be not normally distributed. Homoscedasticity was checked for Age using the Levene’s Test. Significant p-value indicated that obtained differences in sample variances are unlikely to have occurred based on random sampling from a population with equal variances. Normality and homoscedasticity assumptions are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA.
+
+BMI: 
+Normality was checked by inspecting Q-Q plots and histogram. BMI as deemed to be not normally distributed. Homoscedasticity was checked for BMI using the Levene’s Test. Significant p-value indicated that obtained differences in sample variances are unlikely to have occurred based on random sampling from a population with equal variances. Normality and homoscedasticity assumptions are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA.
+
+PHQ-9: 
+Normality was checked by inspecting Q-Q plots and histogram. PHQ-9 total score as deemed to be not normally distributed. Homoscedasticity was checked for PHQ-9 total score using the Levene’s Test. Significant p-value indicated that obtained differences in sample variances are unlikely to have occurred based on random sampling from a population with equal variances. Normality and homoscedasticity assumptions are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA.
+
+GAD-7: 
+Normality was checked by inspecting Q-Q plots and histogram. GAD-7 total score as deemed to be not normally distributed. Homoscedasticity was checked for GAD-7 total score using the Levene’s Test. Non-significant p-value of Levene's test suggested that the variances were equal and there is no difference in variances of both groups. Normality, but not homoscedasticity assumptions, are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA.
+
+PCL: 
+was checked by inspecting Q-Q plots and histogram. PCL-6 total score as deemed to be not normally distributed. Homoscedasticity was checked for PCL-6 total score using the Levene’s Test. Significant p-value indicated that obtained differences in sample variances are unlikely to have occurred based on random sampling from a population with equal variances. Normality and homoscedasticity assumptions are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA.
+
+AUDIT: 
+Normality was checked by inspecting Q-Q plots and histogram. AUDIT total score as deemed to be not normally distributed. Homoscedasticity was checked for AUDIT total score using the Levene’s Test. Significant p-value indicated that obtained differences in sample variances are unlikely to have occurred based on random sampling from a population with equal variances. Normality and homoscedasticity assumptions are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA.
+
+WSAS: 
+Normality was checked by inspecting Q-Q plots and histogram. WSAS total score as deemed to be not normally distributed. Homoscedasticity was checked for WSAS total score using the Levene’s Test. Non-significant p-value of Levene's test suggested that the variances were equal and there is no difference in variances of both groups. Normality, but not homoscedasticity assumptions, are violated, we performed the non-parametric Kruskal-Wallis one-way ANOVA. 
+
+#Plot of standardised residuals of the ANOVA
+## age
+```{r AGE ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+age_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = age ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "Age", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+age_anvoa_std_resid_plot
+```
+
+## BMI
+```{r BMI ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+dem_bmi_current_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = dem_bmi_current ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "Body mass index [kg/m2]", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+dem_bmi_current_anvoa_std_resid_plot
+```
+
+##  PHQ-9
+```{r PHQ-9ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+phq9.sum_score_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = phq9.sum_score ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "PHQ-9 (Depression Symptoms)", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+phq9.sum_score_anvoa_std_resid_plot
+```
+
+## GAD-7
+```{r GAD-7 ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+gad7.sum_score_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = gad7.sum_score ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "GAD-7 (Anxiety Symptoms)", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+gad7.sum_score_anvoa_std_resid_plot
+```
+
+## PCL-6
+```{r PCL-6ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+pcl6.sum_score_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = pcl6.sum_score ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "PCL-6 (PTSD Symptoms)", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+pcl6.sum_score_anvoa_std_resid_plot
+```
+
+## AUDIT
+```{r AUDIT ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+audit.sum_score_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = audit.sum_score ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "AUDIT (Problem alcohol use)", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+audit.sum_score_anvoa_std_resid_plot
+```
+
+## WSAS
+```{r WSAS ANOVA standardised residuals plot, fig.height=3, fig.width=3}
+wsas.sum_score_anvoa_std_resid_plot <- cm.clean %>%
+  aov(formula = wsas.sum_score ~ ED_hierarchical) %>%
+  residuals() %>%
+  as_tibble() %>%
+  mutate(resid.standard = scale(value)) %>%
+  ggplot(mapping = aes(sample = resid.standard)) +
+  stat_qq() +
+  stat_qq_line() +
+  ggtitle(label = "WSAS (Functional Impairment)", subtitle = "A. QQ plot of residuals") +
+  theme_minimal()
+
+wsas.sum_score_anvoa_std_resid_plot
+```
+
+Merge ANOVA residual plots together
+```{r Combine ANOVA standardised residuals plot}
+ANOVAs_standardised_residuals_plot <-
+  (age_anvoa_std_resid_plot | dem_bmi_current_anvoa_std_resid_plot) /
+  (phq9.sum_score_anvoa_std_resid_plot | gad7.sum_score_anvoa_std_resid_plot) /
+  (pcl6.sum_score_anvoa_std_resid_plot | wsas.sum_score_anvoa_std_resid_plot) +
+  (plot_layout(guides = 'collect'))
+
+ANOVAs_standardised_residuals_plot
+```
+
+```{r Combine ANOVA standardised residuals plot ggsave}
+ggsave(
+  paste0("ANOVAs_standardised_residuals", date, ".png"),
+  plot = ANOVAs_standardised_residuals_plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 15, # play around with width 
+  height = 24, # and height
+  units = "cm",
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
+
+
+
+# Posthoc tests
+
+## age:
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r age Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = age ~ ED_hierarchical,
+    p.adjust.method = "BH",detailed = T)
+```
+
+```{r age Dunns post-hoc test table transformation}
+age_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = age ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Age", # Replace variable name here
+    .before = 1
+  )
+
+age_dunn_pairwise
+```
+
+## BMI:
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r dem_bmi_current Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = dem_bmi_current ~ ED_hierarchical,
+    p.adjust.method = "BH")
+```
+
+
+
+```{r dem_bmi_current Dunns post-hoc test table transformation}
+dem_bmi_current_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = dem_bmi_current ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "BMI [kg/m2]", # Replace variable name here
+    .before = 1
+  )
+
+dem_bmi_current_dunn_pairwise
+```
+
+## PHQ-9:
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r phq9.sum_score Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = phq9.sum_score ~ ED_hierarchical,
+    p.adjust.method = "BH")
+```
+
+```{r phq9.sum_score Dunns post-hoc test table transformation}
+phq9.sum_score_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = phq9.sum_score ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "PHQ-9 total score", # Replace variable name here
+    .before = 1
+  )
+
+phq9.sum_score_dunn_pairwise
+```
+
+## GAD-7 
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r gad7.sum_score Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = gad7.sum_score ~ ED_hierarchical,
+    p.adjust.method = "BH")
+```
+
+```{r gad7.sum_score Dunns post-hoc test table transformation}
+gad7.sum_score_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = gad7.sum_score ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "GAD-7 total score", # Replace variable name here
+    .before = 1
+  )
+
+gad7.sum_score_dunn_pairwise
+```
+
+##PCL-6
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r pcl6.sum_score Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = pcl6.sum_score ~ ED_hierarchical,
+    p.adjust.method = "BH")
+```
+
+```{r pcl6.sum_score Dunns post-hoc test table transformation}
+pcl6.sum_score_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = pcl6.sum_score ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "PCL-6 total score", # Replace variable name here
+    .before = 1
+  )
+
+pcl6.sum_score_dunn_pairwise
+```
+
+##AUDIT
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r audit.sum_score Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = audit.sum_score ~ ED_hierarchical,
+    p.adjust.method = "BH")
+```
+
+```{r audit.sum_score Dunns post-hoc test table transformation}
+audit.sum_score_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = audit.sum_score ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "AUDIT total score", # Replace variable name here
+    .before = 1
+  )
+
+audit.sum_score_dunn_pairwise
+```
+
+## WSAS
+Dunn’s post-hoc tests for pairwise comparisons after omnibus test indicates significant differences including Benjamini-Hochberg adjusted Q values
+```{r wsas.sum_score Dunns post-hoc test}
+cm.clean %>%
+  dunn_test(
+    formula = wsas.sum_score ~ ED_hierarchical,
+    p.adjust.method = "BH")
+```
+
+```{r wsas.sum_score Dunns post-hoc test table transformation}
+wsas.sum_score_dunn_pairwise <- cm.clean %>%
+  dunn_test(
+    formula = wsas.sum_score ~ ED_hierarchical, # Replace formula here
+    p.adjust.method = "BH") %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "WSAS total score", # Replace label name here
+    .before = 1
+  )
+
+wsas.sum_score_dunn_pairwise
+```
+
+# Combined table with all Dunn tests results
+```{r Combine Dunn tests}
+dunn_results <-
+  rbind(
+    age_dunn_pairwise,
+    dem_bmi_current_dunn_pairwise,
+    phq9.sum_score_dunn_pairwise,
+    gad7.sum_score_dunn_pairwise,
+    pcl6.sum_score_dunn_pairwise,
+    audit.sum_score_dunn_pairwise,
+    wsas.sum_score_dunn_pairwise
+  )
+
+dunn_results
+```
+Merge descriptives table and Dunn results
+```{r}
+numeric_table_reshaped_reduced_nonparametric_differences
+```
+
+```{r}
+descriptives_continuous <- numeric_table_reshaped_reduced_nonparametric %>%
+  left_join(
+    numeric_table_reshaped_reduced_nonparametric_differences %>%
+      select(
+        -"Anxiety/depression",
+        -"Anorexia nervosa",
+        -"Bulimia nervosa",
+        -"Binge-eating disorder"
+      ), 
+    by = "Variable",
+  ) %>%
+  left_join(
+    dunn_results,
+    by = "Variable"
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(`Anx/Dep vs. AN`,`Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(`Anx/Dep vs. BN`,`Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(`Anx/Dep vs. BED`,`Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(`AN vs. BN`,`Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(`AN vs. BED`,`Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(`BN vs. BED`,`Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+descriptives_continuous
+```
+
+
+```{r}
+worksheet_list <-
+  list(
+    descriptives_continuous
+  )
+
+openxlsx::write.xlsx(
+  x = worksheet_list,
+  file = "../../tables/Tab1_median.xlsx"
+  )
+```
+
+
+# Categorical Variables
+
+## sex per ED_hierarchical 
+
+sex grouped by ED_hierarchical proportions of total sample
+```{r sex per ED_hierarchical prop per total}
+sex_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(sex, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+sex_per_ED_hierarchical_prop_total
+```
+
+sex grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r sex per ED_hierarchical prop per ED_hierarchical}
+sex_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(sex, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+sex_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+sex per ED_hierarchical: count cross table
+```{r sex per ED_hierarchical count cross table}
+sex_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(sex, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+sex_per_ED_hierarchical_count_cross_table
+```
+
+sex per ED_hierarchical: Counts and proportions cross table
+```{r sex per ED_hierarchical prop cross table}
+sex_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(sex, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+sex_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+sex per ED_hierarchical: Overall chi square test
+```{r sex per ED_hierarchical chisquare test}
+sex_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(sex, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-sex) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Sex", # Change variable name here -> use nice label
+    .before = 1)
+
+sex_per_ED_hierarchical_chissquare_test
+```
+
+sex per ED_hierarchical: Pairwise chi square tests
+```{r sex per ED_hierarchical chisquare test pairwise}
+sex_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(sex, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-sex) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Sex", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+sex_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+sex per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r sex per ED_hierarchical chisquare and pairwise comparison}
+sex_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(sex, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = sex) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(sex, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-sex) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+                 ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+                 ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+             ) %>%
+    add_column(
+      Variable = "Sex", # Add label for variable here that should occur in publishable table
+      .before = 1
+    )
+
+sex_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+sex per ED_hierarchical: add significance labels for pairwise comparisons
+```{r sex per ED_hierarchical chisquare and pairwise comparison significance labels}
+sex_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- sex_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    sex_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+sex_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+sex by ED_hierarchical: Plot of counts of sex  per ED_hierarchical group
+```{r sex by ED_hierarchical count plot}
+sex_by_ED_hierarchical_count_plot <- sex_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = sex,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "sex",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+sex_by_ED_hierarchical_count_plot
+```
+
+sex by ED_hierarchical: Plot of sex proportions per ED_hierarchical group
+```{r sex by ED_hierarchical prop plot}
+sex_by_ED_hierarchical_prop_plot <- sex_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = sex,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Biological sex", # Add nix label
+    x = "sex",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+sex_by_ED_hierarchical_prop_plot
+```
+
+
+## Gender per ED_hierarchical 
+
+gender_recode grouped by ED_hierarchical proportions of total sample
+```{r gender_recode per ED_hierarchical prop per total}
+gender_recode_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(gender_recode, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+gender_recode_per_ED_hierarchical_prop_total
+```
+
+gender_recode grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r gender_recode per ED_hierarchical prop per ED_hierarchical}
+gender_recode_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(gender_recode, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+gender_recode_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+gender_recode per ED_hierarchical: count cross table
+```{r gender_recode per ED_hierarchical count cross table}
+gender_recode_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(gender_recode, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+gender_recode_per_ED_hierarchical_count_cross_table
+```
+
+gender_recode per ED_hierarchical: Counts and proportions cross table
+```{r gender_recode per ED_hierarchical prop cross table}
+gender_recode_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(gender_recode, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+gender_recode_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+gender_recode per ED_hierarchical: Overall chi square test
+```{r gender_recode per ED_hierarchical chisquare test}
+gender_recode_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(gender_recode, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-gender_recode) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "gender_recode", # Change variable name here -> use nice label
+    .before = 1)
+
+gender_recode_per_ED_hierarchical_chissquare_test
+```
+
+gender_recode per ED_hierarchical: Pairwise chi square tests
+```{r gender_recode per ED_hierarchical chisquare test pairwise}
+gender_recode_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(gender_recode, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-gender_recode) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "gender_recode", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+gender_recode_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+gender_recode per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r gender_recode per ED_hierarchical chisquare and pairwise comparison}
+gender_recode_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(gender_recode, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = gender_recode) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(gender_recode, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-gender_recode) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "gender_recode", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+gender_recode_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+gender_recode per ED_hierarchical: add significance labels for pairwise comparisons
+```{r gender_recode per ED_hierarchical chisquare and pairwise comparison significance labels}
+gender_recode_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- gender_recode_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    gender_recode_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+gender_recode_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+## Plots
+
+gender_recode by ED_hierarchical: Plot of counts of gender_recode  per ED_hierarchical group
+```{r gender_recode by ED_hierarchical count plot}
+gender_recode_by_ED_hierarchical_count_plot <- gender_recode_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = gender_recode,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Gender",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+gender_recode_by_ED_hierarchical_count_plot
+```
+
+gender_recode by ED_hierarchical: Plot of gender_recode proportions per ED_hierarchical group
+```{r gender_recode by ED_hierarchical prop plot}
+gender_recode_by_ED_hierarchical_prop_plot <- gender_recode_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = gender_recode,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Gender Identity", # Add nix label
+    x = "Gender",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+gender_recode_by_ED_hierarchical_prop_plot
+```
+
+## Sexuality per ED_hierarchical 
+
+sexuality_binary grouped by ED_hierarchical proportions of total sample
+```{r sexuality_binary per ED_hierarchical prop per total}
+sexuality_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+sexuality_binary_per_ED_hierarchical_prop_total
+```
+
+sexuality_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r sexuality_binary per ED_hierarchical prop per ED_hierarchical}
+sexuality_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+sexuality_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+sexuality_binary per ED_hierarchical: count cross table
+```{r sexuality_binary per ED_hierarchical count cross table}
+sexuality_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+sexuality_binary_per_ED_hierarchical_count_cross_table
+```
+
+sexuality_binary per ED_hierarchical: Counts and proportions cross table
+```{r sexuality_binary per ED_hierarchical prop cross table}
+sexuality_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+sexuality_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+sexuality_binary per ED_hierarchical: Overall chi square test
+```{r sexuality_binary per ED_hierarchical chisquare test}
+sexuality_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-sexuality_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Sexuality", # Change variable name here -> use nice label
+    .before = 1)
+
+sexuality_binary_per_ED_hierarchical_chissquare_test
+```
+
+sexuality_binary per ED_hierarchical: Pairwise chi square tests
+```{r sexuality_binary per ED_hierarchical chisquare test pairwise}
+sexuality_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-sexuality_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Sexuality", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+sexuality_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+sexuality_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r sexuality_binary per ED_hierarchical chisquare and pairwise comparison}
+sexuality_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(sexuality_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = sexuality_binary) %>% # variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(sexuality_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-sexuality_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Sexuality", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+sexuality_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+sexuality_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r sexuality_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+sexuality_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- sexuality_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    sexuality_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+sexuality_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+sexuality_binary by ED_hierarchical: Plot of counts of sexuality_binary  per ED_hierarchical group
+```{r sexuality_binary by ED_hierarchical count plot}
+sexuality_binary_by_ED_hierarchical_count_plot <- sexuality_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = sexuality_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Sexuality",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+sexuality_binary_by_ED_hierarchical_count_plot
+```
+
+sexuality_binary by ED_hierarchical: Plot of sexuality_binary proportions per ED_hierarchical group
+```{r sexuality_binary by ED_hierarchical prop plot}
+sexuality_binary_by_ED_hierarchical_prop_plot <- sexuality_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = sexuality_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Sexuality", # Add nix label
+    x = "Sexuality",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+sexuality_binary_by_ED_hierarchical_prop_plot
+```
+
+
+## employment per ED_hierarchical 
+
+employment grouped by ED_hierarchical proportions of total sample
+```{r employment per ED_hierarchical prop per total}
+employment_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(employment, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+employment_per_ED_hierarchical_prop_total
+```
+
+employment grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r employment per ED_hierarchical prop per ED_hierarchical}
+employment_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(employment, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+employment_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+employment per ED_hierarchical: count cross table
+```{r employment per ED_hierarchical count cross table}
+employment_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(employment, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+employment_per_ED_hierarchical_count_cross_table
+```
+
+employment per ED_hierarchical: Counts and proportions cross table
+```{r employment per ED_hierarchical prop cross table}
+employment_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(employment, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+employment_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+employment per ED_hierarchical: Overall chi square test
+```{r employment per ED_hierarchical chisquare test}
+employment_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(employment, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-employment) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Employment", # Change variable name here -> use nice label
+    .before = 1)
+
+employment_per_ED_hierarchical_chissquare_test
+```
+
+employment per ED_hierarchical: Pairwise chi square tests
+```{r employment per ED_hierarchical chisquare test pairwise}
+employment_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(employment, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-employment) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Employment", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+employment_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+employment per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r employment per ED_hierarchical chisquare and pairwise comparison}
+employment_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(employment, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = employment) %>% # Variables levels 
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(employment, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-employment) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Employment", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+employment_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+employment per ED_hierarchical: add significance labels for pairwise comparisons
+```{r employment per ED_hierarchical chisquare and pairwise comparison significance labels}
+employment_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- employment_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    employment_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+employment_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+## Plots
+
+employment by ED_hierarchical: Plot of counts of employment  per ED_hierarchical group
+```{r employment by ED_hierarchical count plot}
+employment_by_ED_hierarchical_count_plot <- employment_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = employment,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Employment",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+employment_by_ED_hierarchical_count_plot
+```
+
+employment by ED_hierarchical: Plot of employment proportions per ED_hierarchical group
+```{r employment by ED_hierarchical prop plot}
+employment_by_ED_hierarchical_prop_plot <- employment_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = employment,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Employment", # Add nix label
+    x = "Employment",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+employment_by_ED_hierarchical_prop_plot
+```
+
+
+## ethnicity_binary per ED_hierarchical 
+
+ethnicity_binary grouped by ED_hierarchical proportions of total sample
+```{r ethnicity_binary per ED_hierarchical prop per total}
+ethnicity_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ethnicity_binary_per_ED_hierarchical_prop_total
+```
+
+ethnicity_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r ethnicity_binary per ED_hierarchical prop per ED_hierarchical}
+ethnicity_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ethnicity_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+ethnicity_binary per ED_hierarchical: count cross table
+```{r ethnicity_binary per ED_hierarchical count cross table}
+ethnicity_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+ethnicity_binary_per_ED_hierarchical_count_cross_table
+```
+
+ethnicity_binary per ED_hierarchical: Counts and proportions cross table
+```{r ethnicity_binary per ED_hierarchical prop cross table}
+ethnicity_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+ethnicity_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+ethnicity_binary per ED_hierarchical: Overall chi square test
+```{r ethnicity_binary per ED_hierarchical chisquare test}
+ethnicity_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-ethnicity_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Ethnicity", # Change variable name here -> use nice label
+    .before = 1)
+
+ethnicity_binary_per_ED_hierarchical_chissquare_test
+```
+
+ethnicity_binary per ED_hierarchical: Pairwise chi square tests
+```{r ethnicity_binary per ED_hierarchical chisquare test pairwise}
+ethnicity_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-ethnicity_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Ethnicity", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+ethnicity_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+ethnicity_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r ethnicity_binary per ED_hierarchical chisquare and pairwise comparison}
+ethnicity_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(ethnicity_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = ethnicity_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(ethnicity_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-ethnicity_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Ethnicity", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+ethnicity_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+ethnicity_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r ethnicity_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+ethnicity_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- ethnicity_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    ethnicity_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+ethnicity_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+## Plots
+
+ethnicity_binary by ED_hierarchical: Plot of counts of ethnicity_binary  per ED_hierarchical group
+```{r ethnicity_binary by ED_hierarchical count plot}
+ethnicity_binary_by_ED_hierarchical_count_plot <- ethnicity_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = ethnicity_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Ethnicity",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+ethnicity_binary_by_ED_hierarchical_count_plot
+```
+
+ethnicity_binary by ED_hierarchical: Plot of ethnicity_binary proportions per ED_hierarchical group
+```{r ethnicity_binary by ED_hierarchical prop plot}
+ethnicity_binary_by_ED_hierarchical_prop_plot <- ethnicity_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = ethnicity_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Ethnicity", # Add nix label
+    x = "Ethnicity",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+ethnicity_binary_by_ED_hierarchical_prop_plot
+```
+
+## relationship_binary per ED_hierarchical 
+
+relationship_binary grouped by ED_hierarchical proportions of total sample
+```{r relationship_binary per ED_hierarchical prop per total}
+relationship_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+relationship_binary_per_ED_hierarchical_prop_total
+```
+
+relationship_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r relationship_binary per ED_hierarchical prop per ED_hierarchical}
+relationship_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+relationship_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+relationship_binary per ED_hierarchical: count cross table
+```{r relationship_binary per ED_hierarchical count cross table}
+relationship_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+relationship_binary_per_ED_hierarchical_count_cross_table
+```
+
+relationship_binary per ED_hierarchical: Counts and proportions cross table
+```{r relationship_binary per ED_hierarchical prop cross table}
+relationship_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+relationship_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+relationship_binary per ED_hierarchical: Overall chi square test
+```{r relationship_binary per ED_hierarchical chisquare test}
+relationship_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-relationship_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Relationship status", # Change variable name here -> use nice label
+    .before = 1)
+
+relationship_binary_per_ED_hierarchical_chissquare_test
+```
+
+relationship_binary per ED_hierarchical: Pairwise chi square tests
+```{r relationship_binary per ED_hierarchical chisquare test pairwise}
+relationship_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-relationship_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Relationship status", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+relationship_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+relationship_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r relationship_binary per ED_hierarchical chisquare and pairwise comparison}
+relationship_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(relationship_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = relationship_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(relationship_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-relationship_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "relationship_binary", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+relationship_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+relationship_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r relationship_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+relationship_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- relationship_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    relationship_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+relationship_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+relationship_binary by ED_hierarchical: Plot of counts of relationship_binary  per ED_hierarchical group
+```{r relationship_binary by ED_hierarchical count plot}
+relationship_binary_by_ED_hierarchical_count_plot <- relationship_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = relationship_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Relationship status",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+relationship_binary_by_ED_hierarchical_count_plot
+```
+
+relationship_binary by ED_hierarchical: Plot of relationship_binary proportions per ED_hierarchical group
+```{r relationship_binary by ED_hierarchical prop plot}
+relationship_binary_by_ED_hierarchical_prop_plot <- relationship_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = relationship_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Relationship status", # Add nix label
+    x = "Relationship status",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+relationship_binary_by_ED_hierarchical_prop_plot
+```
+
+## education_binary per ED_hierarchical 
+
+education_binary grouped by ED_hierarchical proportions of total sample
+```{r education_binary per ED_hierarchical prop per total}
+education_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(education_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+education_binary_per_ED_hierarchical_prop_total
+```
+
+education_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r education_binary per ED_hierarchical prop per ED_hierarchical}
+education_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(education_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+education_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+education_binary per ED_hierarchical: count cross table
+```{r education_binary per ED_hierarchical count cross table}
+education_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(education_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+education_binary_per_ED_hierarchical_count_cross_table
+```
+
+education_binary per ED_hierarchical: Counts and proportions cross table
+```{r education_binary per ED_hierarchical prop cross table}
+education_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(education_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+education_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+education_binary per ED_hierarchical: Overall chi square test
+```{r education_binary per ED_hierarchical chisquare test}
+education_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(education_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-education_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Education attainment", # Change variable name here -> use nice label
+    .before = 1)
+
+education_binary_per_ED_hierarchical_chissquare_test
+```
+
+education_binary per ED_hierarchical: Pairwise chi square tests
+```{r education_binary per ED_hierarchical chisquare test pairwise}
+education_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(education_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-education_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Education attainment", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+education_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+education_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r education_binary per ED_hierarchical chisquare and pairwise comparison}
+education_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(education_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = education_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(education_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-education_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Education attainment", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+education_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+education_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r education_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+education_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- education_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    education_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+education_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+## Plots
+
+education_binary by ED_hierarchical: Plot of counts of education_binary  per ED_hierarchical group
+```{r education_binary by ED_hierarchical count plot}
+education_binary_by_ED_hierarchical_count_plot <- education_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = education_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Education attainment",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+education_binary_by_ED_hierarchical_count_plot
+```
+
+education_binary by ED_hierarchical: Plot of education_binary proportions per ED_hierarchical group
+```{r education_binary by ED_hierarchical prop plot}
+education_binary_by_ED_hierarchical_prop_plot <- education_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = education_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Education attainment (A-Levels or higher)", # Add nix label
+    x = "education_binary",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+education_binary_by_ED_hierarchical_prop_plot
+```
+
+
+# Childhood maltreatment variables
+
+## Sexual abuse
+
+##  Childhood_sexual_abuse_binary per ED_hierarchical 
+
+ Childhood_sexual_abuse_binary grouped by ED_hierarchical proportions of total sample
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical prop per total}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_total
+```
+
+ Childhood_sexual_abuse_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical prop per ED_hierarchical}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+ Childhood_sexual_abuse_binary per ED_hierarchical: count cross table
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical count cross table}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_count_cross_table
+```
+
+ Childhood_sexual_abuse_binary per ED_hierarchical: Counts and proportions cross table
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical prop cross table}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+ Childhood_sexual_abuse_binary per ED_hierarchical: Overall chi square test
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical chisquare test}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(- Childhood_sexual_abuse_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Childhood sexual abuse", # Change variable name here -> use nice label
+    .before = 1)
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_chissquare_test
+```
+
+ Childhood_sexual_abuse_binary per ED_hierarchical: Pairwise chi square tests
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical chisquare test pairwise}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(- Childhood_sexual_abuse_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Childhood sexual abuse", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+ Childhood_sexual_abuse_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical chisquare and pairwise comparison}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" =  Childhood_sexual_abuse_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count( Childhood_sexual_abuse_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(- Childhood_sexual_abuse_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Childhood sexual abuse", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+ Childhood_sexual_abuse_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r  Childhood_sexual_abuse_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <-  Childhood_sexual_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+     Childhood_sexual_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+ Childhood_sexual_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+ Childhood_sexual_abuse_binary by ED_hierarchical: Plot of counts of  Childhood_sexual_abuse_binary  per ED_hierarchical group
+```{r  Childhood_sexual_abuse_binary by ED_hierarchical count plot}
+ Childhood_sexual_abuse_binary_by_ED_hierarchical_count_plot <-  Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x =  Childhood_sexual_abuse_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Childhood sexual abuse",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+ Childhood_sexual_abuse_binary_by_ED_hierarchical_count_plot
+```
+
+ Childhood_sexual_abuse_binary by ED_hierarchical: Plot of  Childhood_sexual_abuse_binary proportions per ED_hierarchical group
+```{r  Childhood_sexual_abuse_binary by ED_hierarchical prop plot}
+ Childhood_sexual_abuse_binary_by_ED_hierarchical_prop_plot <-  Childhood_sexual_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x =  Childhood_sexual_abuse_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Childhood sexual abuse", # Add nix label
+    x = "Childhood sexual abuse",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+ Childhood_sexual_abuse_binary_by_ED_hierarchical_prop_plot
+```
+
+
+## Emotionl abuse 
+
+##  Childhood_emotional_abuse_binary per ED_hierarchical 
+
+ Childhood_emotional_abuse_binary grouped by ED_hierarchical proportions of total sample
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical prop per total}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_total
+```
+
+ Childhood_emotional_abuse_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical prop per ED_hierarchical}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+ Childhood_emotional_abuse_binary per ED_hierarchical: count cross table
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical count cross table}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_count_cross_table
+```
+
+ Childhood_emotional_abuse_binary per ED_hierarchical: Counts and proportions cross table
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical prop cross table}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+ Childhood_emotional_abuse_binary per ED_hierarchical: Overall chi square test
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical chisquare test}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(- Childhood_emotional_abuse_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Childhood emotional abuse", # Change variable name here -> use nice label
+    .before = 1)
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_chissquare_test
+```
+
+ Childhood_emotional_abuse_binary per ED_hierarchical: Pairwise chi square tests
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical chisquare test pairwise}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(- Childhood_emotional_abuse_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Childhood emotional abuse", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+ Childhood_emotional_abuse_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical chisquare and pairwise comparison}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" =  Childhood_emotional_abuse_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count( Childhood_emotional_abuse_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(- Childhood_emotional_abuse_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Childhood emotional abuse", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+ Childhood_emotional_abuse_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r  Childhood_emotional_abuse_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <-  Childhood_emotional_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+     Childhood_emotional_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+ Childhood_emotional_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+ Childhood_emotional_abuse_binary by ED_hierarchical: Plot of counts of  Childhood_emotional_abuse_binary  per ED_hierarchical group
+```{r  Childhood_emotional_abuse_binary by ED_hierarchical count plot}
+ Childhood_emotional_abuse_binary_by_ED_hierarchical_count_plot <-  Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x =  Childhood_emotional_abuse_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Childhood emotional abuse",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+ Childhood_emotional_abuse_binary_by_ED_hierarchical_count_plot
+```
+
+ Childhood_emotional_abuse_binary by ED_hierarchical: Plot of  Childhood_emotional_abuse_binary proportions per ED_hierarchical group
+```{r  Childhood_emotional_abuse_binary by ED_hierarchical prop plot}
+ Childhood_emotional_abuse_binary_by_ED_hierarchical_prop_plot <-  Childhood_emotional_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x =  Childhood_emotional_abuse_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Childhood emotional abuse", # Add nix label
+    x = "Childhood emotional abuse",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+ Childhood_emotional_abuse_binary_by_ED_hierarchical_prop_plot
+```
+
+## Childhood physical abuse
+
+##  Childhood_physical_abuse_binary per ED_hierarchical 
+
+ Childhood_physical_abuse_binary grouped by ED_hierarchical proportions of total sample
+```{r  Childhood_physical_abuse_binary per ED_hierarchical prop per total}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_prop_total
+```
+
+ Childhood_physical_abuse_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r  Childhood_physical_abuse_binary per ED_hierarchical prop per ED_hierarchical}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+ Childhood_physical_abuse_binary per ED_hierarchical: count cross table
+```{r  Childhood_physical_abuse_binary per ED_hierarchical count cross table}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_count_cross_table
+```
+
+ Childhood_physical_abuse_binary per ED_hierarchical: Counts and proportions cross table
+```{r  Childhood_physical_abuse_binary per ED_hierarchical prop cross table}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+ Childhood_physical_abuse_binary per ED_hierarchical: Overall chi square test
+```{r  Childhood_physical_abuse_binary per ED_hierarchical chisquare test}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(- Childhood_physical_abuse_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Childhood physical abuse", # Change variable name here -> use nice label
+    .before = 1)
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_chissquare_test
+```
+
+ Childhood_physical_abuse_binary per ED_hierarchical: Pairwise chi square tests
+```{r  Childhood_physical_abuse_binary per ED_hierarchical chisquare test pairwise}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(- Childhood_physical_abuse_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = " Childhood_physical_abuse_binary", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+ Childhood_physical_abuse_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r  Childhood_physical_abuse_binary per ED_hierarchical chisquare and pairwise comparison}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" =  Childhood_physical_abuse_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count( Childhood_physical_abuse_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(- Childhood_physical_abuse_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Childhood physical abuse", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+ Childhood_physical_abuse_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r  Childhood_physical_abuse_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+ Childhood_physical_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <-  Childhood_physical_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+     Childhood_physical_abuse_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+ Childhood_physical_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+ Childhood_physical_abuse_binary by ED_hierarchical: Plot of counts of  Childhood_physical_abuse_binary  per ED_hierarchical group
+```{r  Childhood_physical_abuse_binary by ED_hierarchical count plot}
+ Childhood_physical_abuse_binary_by_ED_hierarchical_count_plot <-  Childhood_physical_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x =  Childhood_physical_abuse_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Childhood physical abuse",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+ Childhood_physical_abuse_binary_by_ED_hierarchical_count_plot
+```
+
+ Childhood_physical_abuse_binary by ED_hierarchical: Plot of  Childhood_physical_abuse_binary proportions per ED_hierarchical group
+```{r  Childhood_physical_abuse_binary by ED_hierarchical prop plot}
+ Childhood_physical_abuse_binary_by_ED_hierarchical_prop_plot <-  Childhood_physical_abuse_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x =  Childhood_physical_abuse_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Childhood physical abuse", # Add nix label
+    x = " Childhood physical abuse",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+ Childhood_physical_abuse_binary_by_ED_hierarchical_prop_plot
+```
+
+## Childhood emptional neglect
+
+## Childhood_emotional_neglect_binary per ED_hierarchical 
+
+Childhood_emotional_neglect_binary grouped by ED_hierarchical proportions of total sample
+```{r Childhood_emotional_neglect_binary per ED_hierarchical prop per total}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_total
+```
+
+Childhood_emotional_neglect_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r Childhood_emotional_neglect_binary per ED_hierarchical prop per ED_hierarchical}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+Childhood_emotional_neglect_binary per ED_hierarchical: count cross table
+```{r Childhood_emotional_neglect_binary per ED_hierarchical count cross table}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_count_cross_table
+```
+
+Childhood_emotional_neglect_binary per ED_hierarchical: Counts and proportions cross table
+```{r Childhood_emotional_neglect_binary per ED_hierarchical prop cross table}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+Childhood_emotional_neglect_binary per ED_hierarchical: Overall chi square test
+```{r Childhood_emotional_neglect_binary per ED_hierarchical chisquare test}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-Childhood_emotional_neglect_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Childhood emotional neglect", # Change variable name here -> use nice label
+    .before = 1)
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_chissquare_test
+```
+
+Childhood_emotional_neglect_binary per ED_hierarchical: Pairwise chi square tests
+```{r Childhood_emotional_neglect_binary per ED_hierarchical chisquare test pairwise}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-Childhood_emotional_neglect_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Childhood emotional neglect", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+Childhood_emotional_neglect_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r Childhood_emotional_neglect_binary per ED_hierarchical chisquare and pairwise comparison}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = Childhood_emotional_neglect_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(Childhood_emotional_neglect_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-Childhood_emotional_neglect_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Childhood emotional neglect", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+Childhood_emotional_neglect_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r Childhood_emotional_neglect_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+Childhood_emotional_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- Childhood_emotional_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    Childhood_emotional_neglect_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+Childhood_emotional_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+Childhood_emotional_neglect_binary by ED_hierarchical: Plot of counts of Childhood_emotional_neglect_binary  per ED_hierarchical group
+```{r Childhood_emotional_neglect_binary by ED_hierarchical count plot}
+Childhood_emotional_neglect_binary_by_ED_hierarchical_count_plot <- Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = Childhood_emotional_neglect_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Childhood emotional neglect",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+Childhood_emotional_neglect_binary_by_ED_hierarchical_count_plot
+```
+
+Childhood_emotional_neglect_binary by ED_hierarchical: Plot of Childhood_emotional_neglect_binary proportions per ED_hierarchical group
+```{r Childhood_emotional_neglect_binary by ED_hierarchical prop plot}
+Childhood_emotional_neglect_binary_by_ED_hierarchical_prop_plot <- Childhood_emotional_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = Childhood_emotional_neglect_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Childhood emotional neglect", # Add nix label
+    x = "Childhood emotional neglect",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+Childhood_emotional_neglect_binary_by_ED_hierarchical_prop_plot
+```
+
+## Childhood physical neglect
+
+## Childhood_physical_neglect_binary per ED_hierarchical 
+
+Childhood_physical_neglect_binary grouped by ED_hierarchical proportions of total sample
+```{r Childhood_physical_neglect_binary per ED_hierarchical prop per total}
+Childhood_physical_neglect_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_prop_total
+```
+
+Childhood_physical_neglect_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r Childhood_physical_neglect_binary per ED_hierarchical prop per ED_hierarchical}
+Childhood_physical_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+Childhood_physical_neglect_binary per ED_hierarchical: count cross table
+```{r Childhood_physical_neglect_binary per ED_hierarchical count cross table}
+Childhood_physical_neglect_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_count_cross_table
+```
+
+Childhood_physical_neglect_binary per ED_hierarchical: Counts and proportions cross table
+```{r Childhood_physical_neglect_binary per ED_hierarchical prop cross table}
+Childhood_physical_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+Childhood_physical_neglect_binary per ED_hierarchical: Overall chi square test
+```{r Childhood_physical_neglect_binary per ED_hierarchical chisquare test}
+Childhood_physical_neglect_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-Childhood_physical_neglect_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Childhood physical neglect", # Change variable name here -> use nice label
+    .before = 1)
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_chissquare_test
+```
+
+Childhood_physical_neglect_binary per ED_hierarchical: Pairwise chi square tests
+```{r Childhood_physical_neglect_binary per ED_hierarchical chisquare test pairwise}
+Childhood_physical_neglect_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-Childhood_physical_neglect_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Childhood physical neglect", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+Childhood_physical_neglect_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r Childhood_physical_neglect_binary per ED_hierarchical chisquare and pairwise comparison}
+Childhood_physical_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = Childhood_physical_neglect_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(Childhood_physical_neglect_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-Childhood_physical_neglect_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Childhood physical neglect", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+Childhood_physical_neglect_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r Childhood_physical_neglect_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+Childhood_physical_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- Childhood_physical_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    Childhood_physical_neglect_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+Childhood_physical_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+Childhood_physical_neglect_binary by ED_hierarchical: Plot of counts of Childhood_physical_neglect_binary  per ED_hierarchical group
+```{r Childhood_physical_neglect_binary by ED_hierarchical count plot}
+Childhood_physical_neglect_binary_by_ED_hierarchical_count_plot <- Childhood_physical_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = Childhood_physical_neglect_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Childhood physical neglect",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+Childhood_physical_neglect_binary_by_ED_hierarchical_count_plot
+```
+
+Childhood_physical_neglect_binary by ED_hierarchical: Plot of Childhood_physical_neglect_binary proportions per ED_hierarchical group
+```{r Childhood_physical_neglect_binary by ED_hierarchical prop plot}
+Childhood_physical_neglect_binary_by_ED_hierarchical_prop_plot <- Childhood_physical_neglect_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = Childhood_physical_neglect_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Childhood physical neglect", # Add nix label
+    x = "Childhood physical neglect",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+Childhood_physical_neglect_binary_by_ED_hierarchical_prop_plot
+```
+
+## Any childhood maltreatment 
+## Any_childhood_maltreatment_binary per ED_hierarchical 
+
+Any_childhood_maltreatment_binary grouped by ED_hierarchical proportions of total sample
+```{r Any_childhood_maltreatment_binary per ED_hierarchical prop per total}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_total <- cm.clean %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_total
+```
+
+Any_childhood_maltreatment_binary grouped by ED_hierarchical proportions per ED_hierarchical group/level
+```{r Any_childhood_maltreatment_binary per ED_hierarchical prop per ED_hierarchical}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_of_ED_hierarchical <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2))
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_of_ED_hierarchical
+```
+
+## Cross tables
+
+Any_childhood_maltreatment_binary per ED_hierarchical: count cross table
+```{r Any_childhood_maltreatment_binary per ED_hierarchical count cross table}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_count_cross_table <- cm.clean %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  )
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_count_cross_table
+```
+
+Any_childhood_maltreatment_binary per ED_hierarchical: Counts and proportions cross table
+```{r Any_childhood_maltreatment_binary per ED_hierarchical prop cross table}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 2)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop))
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_of_ED_hierarchical_cross_table
+```
+## Chi square
+
+Any_childhood_maltreatment_binary per ED_hierarchical: Overall chi square test
+```{r Any_childhood_maltreatment_binary per ED_hierarchical chisquare test}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_chissquare_test <- cm.clean %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-Any_childhood_maltreatment_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  chisq.test() %>%
+  glance() %>%
+  add_column(
+    Variable = "Any childhood maltreatment", # Change variable name here -> use nice label
+    .before = 1)
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_chissquare_test
+```
+
+Any_childhood_maltreatment_binary per ED_hierarchical: Pairwise chi square tests
+```{r Any_childhood_maltreatment_binary per ED_hierarchical chisquare test pairwise}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_chissquare_test_pairwise <- cm.clean %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  spread(key = ED_hierarchical, value = n) %>%
+  select(-Any_childhood_maltreatment_binary) %>%
+  mutate(
+    "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+    "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+    "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+    "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+  ) %>%
+  pairwise_chisq_gof_test(
+    p.adjust.method = "BH"
+  ) %>%
+  mutate(
+    Comparison = paste(group1,"vs.",group2, sep = " "),
+    Effect = p.adj.signif
+  ) %>%
+  select(
+    Comparison,
+    Effect
+  ) %>%
+  pivot_longer(
+    cols = c("Effect"),
+    values_to = "Difference") %>%
+  select(-name) %>%
+  pivot_wider(
+    names_from = "Comparison",
+    values_from = "Difference") %>%
+  add_column(
+    Variable = "Any childhood maltreatment", # Replace variable name here -> nice label
+    .before = 1
+  )
+
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_chissquare_test_pairwise
+```
+
+Any_childhood_maltreatment_binary per ED_hierarchical: count and proportions per ED_hiearchical groups, and overall chi^2 p value and pairwise comparisons including significance level
+```{r Any_childhood_maltreatment_binary per ED_hierarchical chisquare and pairwise comparison}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_count_prop_chisquare_pairwise <- cm.clean %>%
+  group_by(ED_hierarchical) %>%
+  count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+  mutate(Prop = round(n/sum(n), 3)) %>%
+  pivot_wider(names_from = ED_hierarchical, values_from = c(n, Prop)) %>%
+  rename("Levels" = Any_childhood_maltreatment_binary) %>% # Variable levels
+  mutate(
+    "Anxiety/depression" = paste0(`n_Anxiety/depression`, " (",`Prop_Anxiety/depression`*100,"%)"),
+    "Anorexia nervosa" = paste0(`n_Anorexia nervosa`, " (",`Prop_Anorexia nervosa`*100,"%)"),
+    "Bulimia nervosa" = paste0(`n_Bulimia nervosa`, " (",`Prop_Bulimia nervosa`*100,"%)"),
+    "Binge-eating disorder" = paste0(`n_Binge-eating disorder`, " (",`Prop_Binge-eating disorder`*100,"%)"),
+    "Anx/Dep vs. AN" = (`Prop_Anxiety/depression` - `Prop_Anorexia nervosa`)*100,
+    "Anx/Dep vs. BN" = (`Prop_Anxiety/depression` - `Prop_Bulimia nervosa`)*100,
+    "Anx/Dep vs. BED" = (`Prop_Anxiety/depression` -  `Prop_Binge-eating disorder`)*100,
+    "AN vs. BN" = (`Prop_Anorexia nervosa` - `Prop_Bulimia nervosa`)*100,
+    "AN vs. BED" = (`Prop_Anorexia nervosa`- `Prop_Binge-eating disorder`)*100,
+    "BN vs. BED" = (`Prop_Bulimia nervosa` - `Prop_Binge-eating disorder`)*100
+  ) %>%
+  select(
+    -starts_with("n_"),
+    -starts_with("Prop_")
+  ) %>%
+  add_column("Chi2" =
+               cm.clean %>%
+               count(Any_childhood_maltreatment_binary, ED_hierarchical) %>%
+               spread(key = ED_hierarchical, value = n) %>%
+               select(-Any_childhood_maltreatment_binary) %>%
+               mutate(
+                 "Anxiety/depression" = as.integer(replace_na(`Anxiety/depression`, 0)),
+                 "Anorexia nervosa" = as.integer(replace_na(`Anorexia nervosa`, 0)),
+                 "Bulimia nervosa" = as.integer(replace_na(`Bulimia nervosa`, 0)),
+                 "Binge-eating disorder" = as.integer(replace_na(`Binge-eating disorder`, 0))
+               ) %>%
+               chisq_test() %>%
+               mutate(
+                 "Chi2" = paste0(`p`, `p.signif`)
+               ) %>%
+               pull(Chi2), 
+             .before = "Anx/Dep vs. AN"
+  ) %>%
+  add_column(
+    Variable = "Any childhood maltreatment", # Add label for variable here that should occur in publishable table
+    .before = 1
+  )
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_count_prop_chisquare_pairwise
+```
+
+Any_childhood_maltreatment_binary per ED_hierarchical: add significance labels for pairwise comparisons
+```{r Any_childhood_maltreatment_binary per ED_hierarchical chisquare and pairwise comparison significance labels}
+Any_childhood_maltreatment_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign <- Any_childhood_maltreatment_binary_per_ED_hierarchical_count_prop_chisquare_pairwise %>%
+  left_join(
+    Any_childhood_maltreatment_binary_per_ED_hierarchical_chissquare_test_pairwise
+  ) %>%
+  mutate(
+    "Anx/Dep vs. AN" = paste0(format(round(`Anx/Dep vs. AN`), nsmall = 1), `Anxiety/depression vs. Anorexia nervosa`),
+    "Anx/Dep vs. BN" = paste0(format(round(`Anx/Dep vs. BN`), nsmall = 1), `Anxiety/depression vs. Bulimia nervosa`),
+    "Anx/Dep vs. BED" = paste0(format(round(`Anx/Dep vs. BED`), nsmall = 1), `Anxiety/depression vs. Binge-eating disorder`),
+    "AN vs. BN" = paste0(format(round(`AN vs. BN`), nsmall = 1), `Anorexia nervosa vs. Bulimia nervosa`),
+    "AN vs. BED" = paste0(format(round(`AN vs. BED`), nsmall = 1), `Anorexia nervosa vs. Binge-eating disorder`),
+    "BN vs. BED" = paste0(format(round(`BN vs. BED`), nsmall = 1), `Bulimia nervosa vs. Binge-eating disorder`),
+  ) %>%
+  select(
+    -"Anxiety/depression vs. Anorexia nervosa",
+    -"Anxiety/depression vs. Bulimia nervosa",
+    -"Anxiety/depression vs. Binge-eating disorder",
+    -"Anorexia nervosa vs. Bulimia nervosa",
+    -"Anorexia nervosa vs. Binge-eating disorder",
+    -"Bulimia nervosa vs. Binge-eating disorder"
+  )
+
+Any_childhood_maltreatment_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+```
+
+
+
+## Plots
+
+Any_childhood_maltreatment_binary by ED_hierarchical: Plot of counts of Any_childhood_maltreatment_binary  per ED_hierarchical group
+```{r Any_childhood_maltreatment_binary by ED_hierarchical count plot}
+Any_childhood_maltreatment_binary_by_ED_hierarchical_count_plot <- Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = Any_childhood_maltreatment_binary,
+    y = n)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  labs(
+    x = "Any childhood maltreatment",
+    y = "Number of participants",
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  coord_flip()
+Any_childhood_maltreatment_binary_by_ED_hierarchical_count_plot
+```
+
+Any_childhood_maltreatment_binary by ED_hierarchical: Plot of Any_childhood_maltreatment_binary proportions per ED_hierarchical group
+```{r Any_childhood_maltreatment_binary by ED_hierarchical prop plot}
+Any_childhood_maltreatment_binary_by_ED_hierarchical_prop_plot <- Any_childhood_maltreatment_binary_per_ED_hierarchical_prop_of_ED_hierarchical %>%
+  ggplot(mapping = aes(
+    x = Any_childhood_maltreatment_binary,
+    y = Prop)
+  ) +
+  geom_bar(
+    aes(fill = ED_hierarchical),
+    stat="identity",
+    binwidth = 1,
+    position = position_dodge2(preserve = "single")
+  ) +
+  scale_y_continuous(labels = percent_format(), limits=c(0,1)) +
+  labs(
+    title = "Any childhood maltreatment", # Add nix label
+    x = "Any childhood maltreatment",
+    y = "Percentage per eating disorder", # Change label for y axis
+    fill = "Eating disorder") + # Change label for legend
+  theme_personal +
+  scale_fill_manual(
+    values = pallette_tom
+  ) +
+  labs(fill = "Eating Disorder") +
+  coord_flip()
+
+Any_childhood_maltreatment_binary_by_ED_hierarchical_prop_plot
+```
+
+
+# Save demographics tables and figures to files
+Combine all tables together
+```{r Categorical variables: combine stats all tables together}
+descriptives_categorical <-
+  rbind(
+    sex_per_ED_hierarchical_count_prop_chisquare_pairwise_sign, #add other tables
+    gender_recode_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    employment_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    ethnicity_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    relationship_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    sexuality_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    education_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+    )
+
+descriptives_categorical
+```
+
+Write table to spreadsheet
+```{r Write categorical table to spreadsheet}
+worksheet_list_categorical <-
+  list(
+    descriptives_categorical
+  )
+
+openxlsx::write.xlsx(
+  x = worksheet_list_categorical,
+  file = paste0("../../tables/Tab1_categorical", date, ".xlsx")
+  )
+```
+
+# Save maltreatment tables and figures to files
+Combine all tables together
+```{r Categorical variables: combine all tables together}
+maltreatment_categorical <-
+  rbind(# add other tables here
+    Childhood_sexual_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    Childhood_emotional_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    Childhood_physical_abuse_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    Childhood_emotional_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    Childhood_physical_neglect_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign,
+    Any_childhood_maltreatment_binary_per_ED_hierarchical_count_prop_chisquare_pairwise_sign
+
+  )
+
+maltreatment_categorical
+```
+
+Write table to spreadsheet
+```{r Write maltreatment table to spreadsheet}
+worksheet_maltreatment_list_categorical <-
+  list(
+    maltreatment_categorical
+  )
+
+openxlsx::write.xlsx(
+  x = worksheet_maltreatment_list_categorical,
+  file = paste0("../../tables/Tab2_maltreatment_categorical", date, ".xlsx")
+  )
+```
+
+# Combine plots
+
+## Demographic
+```{r categorical_plots_sex_gender_gender_recode plots demographics}
+categorical_plots_sex_gender_gender_recode <-
+  sex_by_ED_hierarchical_prop_plot /
+  gender_recode_by_ED_hierarchical_prop_plot +
+  plot_layout(guides = 'collect')
+
+categorical_plots_sex_gender_gender_recode
+```
+
+```{r categorical_plots_sex_gender_gender_recode ggsave}
+ggsave(
+  paste0("categorical_plots_sex_gender_gender_recode", date, ".png"),
+  plot = categorical_plots_sex_gender_gender_recode,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 6, # play around with width
+  height = 8, # and height
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
+
+plot_spacer()
+Combine categorical descriptives together
+```{r Combine histograms}
+cat_variable_by_ED_hierarchical_plot <-
+  (sex_by_ED_hierarchical_prop_plot | gender_recode_by_ED_hierarchical_prop_plot) /
+  (ethnicity_binary_by_ED_hierarchical_prop_plot | sexuality_binary_by_ED_hierarchical_prop_plot) /
+  (relationship_binary_by_ED_hierarchical_prop_plot | employment_by_ED_hierarchical_prop_plot) / 
+  (education_binary_by_ED_hierarchical_prop_plot + plot_spacer()) +
+  plot_layout(guides = 'collect')
+
+cat_variable_by_ED_hierarchical_plot
+```
+
+```{r Combine boxplots ggsave}
+ggsave(
+  paste0("cat_variable_by_ED_hierarchical_plot", date, ".png"),
+  plot = cat_variable_by_ED_hierarchical_plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 12, # play around with width 
+  height = 16, # and height
+  units = c("in"),
+  dpi = 300,
+  limitsize = TRUE
+)
+
+```
