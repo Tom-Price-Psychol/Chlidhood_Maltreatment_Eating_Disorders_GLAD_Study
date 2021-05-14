@@ -1,0 +1,2147 @@
+---
+title: 'CM_ED: Variable creation'
+author: "Thomas Price"
+date: "04/05/2021"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: inline
+---
+
+# Set markdown options 
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE,
+                      comment=NA,
+                      prompt=FALSE,
+                      cache=FALSE)
+```
+
+# Clear workspace
+```{r clear workspace}
+remove(list = ls())
+```
+
+
+# Retrieve the recent date
+```{r recent date}
+date = Sys.Date()
+date
+```
+
+## Install Packages
+```{r Install Packages}
+#install.packages("summarytools")
+#install.packages("tidyverse")
+```
+
+## Load Packages
+```{r Load Packages}
+library(summarytools)
+library(tidyverse)
+```
+
+# Read in data
+```{r Read in data}
+data_raw <- read_rds(
+  file = "../../data_clean/CM_ED_Data2021-05-04.rds")
+```
+
+Add suffix "unc" for uncleaned data columns
+```{r Add unc suffix}
+colnames(data_raw) <- paste(colnames(data_raw), "unc", sep = "_")
+```
+
+```{r data_raw colnames}
+data_raw %>%
+  colnames()
+```
+
+# Implausible values
+
+## Age
+```{r age Variable Cleaning}
+data_raw %>%
+  descr(age_unc,
+        stats = "common")
+```
+
+Age outliers: The oldest person in the world is 117 years. 
+The data set should not have individuals younger than 16
+
+Set age limits
+```{r age define limits}
+age_upper_limit = 117 
+age_lower_limit = 16
+```
+
+```{r Age outlier count}
+data_raw %>%
+  filter(
+    age_unc > age_upper_limit | # older than the age limit
+      age_unc < age_lower_limit # younger than the age limit
+    ) %>%
+  nrow()
+```
+
+Recode outliers to NA
+```{r age Recode outliers to NA}
+data_raw <- data_raw %>%
+    mutate(
+      age =
+        if_else(
+          age_unc > age_upper_limit |
+            age_unc < age_lower_limit,
+          true = NA_real_,
+          false = age_unc,
+          missing = NA_real_
+        )
+    )
+```
+
+```{r age after recoding to NA}
+data_raw %>%
+  descr(age,
+        stats = "common")
+```
+
+## Height cm
+
+Implausible values for for height cm. If less than 2, we assume that the person entered their height in m, into the cm response box. 
+```{r height cm number of participants with implausible values}
+input_mistakes_dem.height_cm_in_m <- data_raw %>%
+  select(dem_current_cm_unc) %>%
+  filter(dem_current_cm_unc <= 2) %>%
+  count() %>%
+  pull()
+
+input_mistakes_dem.height_cm_in_m
+```
+72 people did this. 
+
+Convert these values to m
++++ CH: We should in the future think about what to do with negative values
++++ CH: We should think about values greater than >2 but <220 -> maybe the floating point is in the wrong place
+```{r dem_current_cm }
+data_raw <- data_raw %>%
+  mutate(dem_current_cm_unc2 =
+           if_else(
+             condition = dem_current_cm_unc <= 2, # If someone says there are 2 or less cm tall, they probably entered their height in metres rather than cm
+              true = dem_current_cm_unc/100, # true = convert to metres (dividing the value smaller than 2 by 100)
+              false = dem_current_cm_unc, # false = leave height in cm
+              missing = NA_real_
+               )
+       )
+
+data_raw %>%
+  descr(
+    dem_current_cm_unc2,
+    stats = "common"
+    )
+```
+
+Set height in cm limits
+The tallest person in the world is 2.51m
+```{r height_cm define limits}
+height_cm_upper_limit = 251  # The tallest person in the world is 2.51m
+height_cm_lower_limit = 57
+```
+
+Identify height_cm number of outliers
+102 people fell outside of these limits
+```{r height_cm outlier count}  
+data_raw %>%
+  filter(
+      dem_current_cm_unc2 > height_cm_upper_limit |
+        dem_current_cm_unc2 < height_cm_lower_limit
+    ) %>%
+  nrow()
+```
+  
+Recode these outliers to NA
+```{r height_cm Recode outliers to NA}
+data_raw <- data_raw %>%
+    mutate(
+      dem_current_cm =
+        if_else(
+          dem_current_cm_unc2 > height_cm_upper_limit |
+            dem_current_cm_unc2 < height_cm_lower_limit,
+          true = NA_real_,
+          false = dem_current_cm_unc2,
+          missing = NA_real_
+        )
+    )
+
+data_raw %>%
+  descr(
+    dem_current_cm,
+    stats = "common"
+    )
+```
+
+## Height metres
+
+Conversion from feet to metres: 1 feet corresponds to 0.3048 metres
+Conversion from inches to metres: 1 inch corresponds to 0.0254 metres
+```{r convert ft and inc to metres}
+data_raw$dem.height_current_metres_unc <- NA
+
+# Feet and inches to metres
+data_raw <- data_raw %>%
+  mutate(dem.height_current_metres_unc =
+  if_else(
+    condition = is.na(dem.height_current_metres_unc),
+    true = (dem_current_ft_unc*0.3048) + (dem_current_in_unc*0.0254),
+    false = NA_real_,
+    missing = NA_real_
+    )
+  )
+
+# Inspect variable
+data_raw %>%
+  descr(
+    dem.height_current_metres_unc,
+    stats = "common"
+    )
+```
+
+Centimetres to metres
+convert height in cm to m 
+```{r dem.height_current_metres convert cm to metres}
+data_raw <- data_raw %>%
+  mutate(dem.height_current_metres_unc =
+  if_else(
+    condition = is.na(dem.height_current_metres_unc),
+    true = dem_current_cm/100,
+    false = dem.height_current_metres_unc)
+  )
+```
+
+check heiht agter conversions
+```{r check after dem.height_current_metres_unc recoding to NA}
+data_raw %>%
+  descr(
+    dem.height_current_metres_unc,
+    stats = "common"
+    )
+```
+
+Set height limits in metre: again, no one in the data should be taller than 2.51 m or shorter than 0.57 m. The tallest and shortest people in the world.
+
+```{r dem.height_current_metres_unc define limits}
+height_m_upper_limit = 2.51  # The tallest person in the world is 2.51 m
+height_m_lower_limit = 0.57
+```
+
+Height outlier count: 79 people remained outside of these limits
+```{r dem.height_current_metres_unc outlier count}
+data_raw %>%
+  filter(
+    dem.height_current_metres_unc > height_m_upper_limit | # taller than the height limit
+      dem.height_current_metres_unc < height_m_lower_limit # shorter than the height limit
+    ) %>%
+  nrow()
+```
+
+Recode dem.height_current_metres_unc outliers to NA
+```{r dem.height_current_metres Recode outliers to NA}
+data_raw <- data_raw %>%
+    mutate(
+      dem.height_current_metres =
+        if_else(
+          condition = dem.height_current_metres_unc > height_m_upper_limit |
+            dem.height_current_metres_unc < height_m_lower_limit,
+          true = NA_real_,
+          false = dem.height_current_metres_unc,
+          missing = NA_real_
+        )
+    )
+```
+
+Inspect height variable
+```{r dem.height_current_metres after recoding to NA}
+data_raw %>%
+  descr(
+    dem.height_current_metres,
+    stats = "common"
+    )
+
+```
+
+Plot cleaned height variable
+```{r plot dem.height_current_metres, fig.width = 5, fig.height = 3}
+data_raw %>%
+  ggplot(mapping = 
+         aes(x = dem.height_current_metres,
+             y = seq_along(dem.height_current_metres))) +
+         geom_point() +
+  geom_vline(
+    xintercept = mean(data_raw$dem.height_current_metres, na.rm = T),
+    color = "blue") +
+  theme_classic() +
+  labs(x = "Participant height in metres") +
+  labs(y = "Sequence of integers") +
+  labs(caption = "(Particpants from the GLAD Study)")
+```
+
+# Weight
+
+LOGIC for implausible values: If entire weight in lbs is entered into the lbs column, rather than their weight in stone and lbs (e.g. put 0 stone and 130 lbs) [EDGI & GLAD]
+
+Participants are given the option of entering their weight in stone & lbs. Some participants may have instead entered their entire weight in lbs into the lbs column, leaving the stones option either empty or may have entered "0". 
+
+To check this mistake, we have looked at the amount of people who have entered more than the minimum weight (i.e., 19 kg = 41 lbs) into the lbs column.
+
+To correct this mistake, if these people have also entered "0" or are NA in the stones column, we then convert their entry in lbs into stone.
+
+## Weight in lbs
+
+```{r dem_current_lb_unc inspection}
+data_raw %>%
+  descr(dem_current_lb_unc,
+        stats = "common")
+```
+
+Identify implausible weight values - less than 41 lbs. 
+```{r dem_current_lb_unc identify implausible weight values}
+input_mistakes_weight_lb <- data_raw %>%
+  select(dem_current_lb_unc) %>%
+  filter(dem_current_lb_unc >= 41) %>% # 19 kg = 41 lbs
+  count() %>%
+  pull()
+
+input_mistakes_weight_lb
+```
+272 participants have entered weight values in pounds (lbs) less than 19 kg. 
+
+Recode implausible st and lbs weight values to NA
+```{r dem_current_st dem_current_lb_unc recode implausible values to NA}
+data_raw <- data_raw %>%
+  mutate(dem_current_st_unc2 =
+       if_else(
+         condition = (dem_current_st_unc == 0 | # If 0 was entered in the stone column OR
+                  is.na(dem_current_st_unc)) & # If someone is NA in the stone columm...
+                 dem_current_lb_unc >= 41, # ... AND has put more than the minimum weight (19 kg) into the lbs column
+         true = dem_current_lb_unc/14, # True = divide their entry in the lbs column by 14 to get their weight in stone
+         false = dem_current_st_unc,  # False = leave their weight in stone 
+         missing = NA_real_
+         )
+       )
+```
+
+check stones variable
+```{r dem_current_st after recoding to NA}
+data_raw %>%
+  descr(dem_current_st_unc2,
+        stats = "common")
+```
+
+Calculate kg (dem_current_calculated_kg_unc)
+Convert stones (st) and pounds (lbs) to kilogram (kg)
+```{r dem_current_calculated_kg_unc pound and stone to kg conversaion}
+# Initialise empty column
+data_raw$dem_current_calculated_kg_unc <- NA
+
+data_raw <- data_raw %>%
+  mutate(
+    dem_current_calculated_kg_unc =
+  if_else(
+    condition = is.na(dem_current_calculated_kg_unc), 
+    true = (dem_current_st_unc2*6.35029) + (dem_current_lb_unc*0.453592),
+    false = NA_real_,
+    missing = NA_real_
+    )
+  )
+```
+
+Summary of calculated kg
+```{r dem_current_calculated_kg_unc calculated kg}
+data_raw %>%
+  descr(dem_current_calculated_kg_unc,
+        stats = "common")
+```
+
+## Weight in kg
+
+Combine calculated kg with self-report kg
+```{r Combine calculated kg with self-report kg}
+data_raw <- data_raw %>%
+  mutate(weight_current_kg_unc = # new weight in kg variable
+           if_else(
+             condition = is.na(dem_current_calculated_kg_unc),
+             true = dem_current_kg_unc, # self-reported weight in kg in sign up
+             false = dem_current_calculated_kg_unc, # calculated weight in kg from st and lbs
+             missing = NA_real_
+             )
+  )
+```
+
+Summary of kg (weight_current_kg)
+```{r weight_current_kg after combination}
+data_raw %>%
+  descr(weight_current_kg_unc,
+        stats = "common")
+```
+
+Set limits for weight
+```{r weight_current_kg define limits}
+weight_current_kg_upper_limit = 400
+weight_current_kg_lower_limit = 19
+```
+
+Recode implausible weight values (KG) to NA
+```{r dem_current_kg recode implausible values to NA}
+data_raw <- data_raw %>%
+  mutate(
+    dem_current_kg = # cleaned weight in kg
+      if_else(
+        condition = weight_current_kg_unc > weight_current_kg_upper_limit |
+          weight_current_kg_unc < weight_current_kg_lower_limit,
+        true = NA_real_,
+        false = weight_current_kg_unc, # calculated weight in kg
+        missing = NA_real_
+        )
+    )
+```
+
+Check weight in kg after setting to NA
+```{r dem_current_kg after recoding to NA}
+data_raw %>%
+  descr(dem_current_kg,
+        stats = "common")
+```
+
+
+# Body mass index (BMI = kg/m2)
+
+We calculate BMI using participant height and weight: the BMI is defined as the body mass divided by the square of the body height, and is universally expressed in units of kg/m², resulting from mass in kilograms and height in metres.
+```{r dem_bmi_current_unc conversion}
+data_raw <- data_raw %>%
+  mutate(
+    dem_bmi_current_unc =
+      dem_current_kg/dem.height_current_metres^2
+  )
+```
+
+Check BMI variable
+```{r dem_bmi_current_unc after calculation before exclusion}
+data_raw %>%
+  descr(dem_bmi_current_unc,
+        stats = "common")
+```
+
+Set BMI limits - derived through consultation with GLAD Study team, PGC Eating Disorder working group and clinicians working in the field. 
+```{r dem_bmi_current_unc define limits}
+bmi_upper_limit = 60 
+bmi_lower_limit = 7
+```
+
+Count implausible BMI values
+```{r BMI outlier count}
+data_raw %>%
+  filter(
+    dem_bmi_current_unc > bmi_upper_limit | # BMI greater than the upper limit
+      dem_bmi_current_unc < bmi_lower_limit # BMI lower the lower limit
+  ) %>%
+  nrow()
+```
+
+Recode outliers to NA
+```{r bmi Recode outliers to NA}
+data_raw <- data_raw %>%
+    mutate(
+      dem_bmi_current =
+        if_else(
+          dem_bmi_current_unc > bmi_upper_limit |
+            dem_bmi_current_unc < bmi_lower_limit,
+          true = NA_real_,
+          false = dem_bmi_current_unc,
+          missing = NA_real_
+        )
+    )
+```
+
+Check BMI after recoding
+```{r BMI after recoding to NA}
+data_raw %>%
+  descr(dem_bmi_current,
+        stats = "common")
+```
+
+
+# Patient Health Questionnaire (PHQ)-9 
+
+Set minimum and maximum responses
+```{r phq9 minimum and maximum}
+phq9.minimum = 0
+phq9.maximum = 3
+```
+
+Create vector with scoring key: If the item is reversed coded use -1. 
+There needs to be the correct number of values for each item in the questionnaire. 
+```{r phq9.items_key}
+phq9.items_key <- c(
+  1, # "phq9.little_interest_or_pleasure_in_doing_things_numeric",
+  1, # "phq9.feeling_down_depressed_or_hopeless_numeric",
+  1, # "phq9.staying_asleep_sleeping_trouble_numeric",
+  1, # "phq9.feeling_tired_or_having_little_energy_numeric",
+  1, # "phq9.poor_appetite_or_overeating_numeric",
+  1, # "phq9.feeling_bad_failure_family_numeric",
+  1, # "phq9.trouble_concentrating_reading_newspaper_numeric",
+  1, # "phq9.moving_fidgety_noticed_opposite_numeric",
+  1 # "phq9.dead_hurting_thoughts_numeric"
+  )
+```
+
+Create vector with items that are included in sum score
+```{r phq9.items}
+phq9.items_unc <- c(
+  "phq9.little_interest_or_pleasure_in_doing_things_numeric_unc",
+  "phq9.feeling_down_depressed_or_hopeless_numeric_unc",
+  "phq9.staying_asleep_sleeping_trouble_numeric_unc",
+  "phq9.feeling_tired_or_having_little_energy_numeric_unc",
+  "phq9.poor_appetite_or_overeating_numeric_unc",
+  "phq9.feeling_bad_failure_family_numeric_unc",
+  "phq9.trouble_concentrating_reading_newspaper_numeric_unc",
+  "phq9.moving_fidgety_noticed_opposite_numeric_unc",
+  "phq9.dead_hurting_thoughts_numeric_unc"
+  )
+
+phq9.items <- c(
+  "phq9.little_interest_or_pleasure_in_doing_things_numeric",
+  "phq9.feeling_down_depressed_or_hopeless_numeric",
+  "phq9.staying_asleep_sleeping_trouble_numeric",
+  "phq9.feeling_tired_or_having_little_energy_numeric",
+  "phq9.poor_appetite_or_overeating_numeric",
+  "phq9.feeling_bad_failure_family_numeric",
+  "phq9.trouble_concentrating_reading_newspaper_numeric",
+  "phq9.moving_fidgety_noticed_opposite_numeric",
+  "phq9.dead_hurting_thoughts_numeric"
+  )
+```
+
+Checking numeric variables and cleaning (PHQ-9)
+This chunk can only be run once; otherwise you need to re-run the whole markdown
+```{r phq9 Checking numeric variables and cleaning}
+data_raw <- data_raw %>%
+  mutate(
+    across(all_of(phq9.items_unc),
+    .fns = list(clean = ~if_else(
+      condition = . < phq9.minimum | . > phq9.maximum,
+      true = NA_real_,
+      false = .
+      )
+      )
+    )
+    ) %>%
+  rename_at(
+    vars(contains( "_unc_clean")),
+    list(~paste0(gsub("_unc_clean", "", .)))
+  )
+```
+
+Check PHQ-9 before setting missing to NA
+```{r phq9 double checking before setting missing, include = FALSE}
+data_raw %>%
+  select(phq9.items) %>%
+  head()
+```
+
+Check PHQ-9 after setting missing to NA 
+```{r phq9 double checking fter setting missing}
+data_raw %>%
+  select(phq9.items) %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(cols = everything())
+```
+
+## Calculate sum score for PHQ-9
+The function does ignore NAs. Individuals need to be coded as NA afterwards
+```{r phq9 sum score}
+# Calculate sum score
+phq9.scored_items <- psych::scoreItems(
+  keys = phq9.items_key,
+  items = data_raw[phq9.items],
+  totals = TRUE, 
+  missing = TRUE, 
+  impute = 'none', 
+  min = phq9.minimum, 
+  max = phq9.maximum)
+
+# Add in column to tibble
+data_raw$phq9.sum_score_raw <- phq9.scored_items$scores
+
+# Look at values
+data_raw %>%
+  descr(
+    var = phq9.sum_score_raw,
+    stats = "common"
+    )
+```
+The function recodes NAs to zeros
+
+Missingness in PHQ-9 (NAs per person)
+```{r phq9  missingness}
+data_raw <- data_raw %>%
+  mutate(
+    na_per_person_phq9 =         # variable for NA per person
+      rowSums(                       
+        is.na(.[phq9.items])
+      )
+  )
+
+data_raw %>%
+  freq(na_per_person_phq9,
+       cumul = F)
+```
+
+Missing values set to NA
+If a participant has one missing item, their sum score is set to NA
+```{r phq9 sum score if participant has one missing item sum score set to NA}
+data_raw <- data_raw %>%
+  mutate(
+    phq9.sum_score =
+      if_else(condition = na_per_person_phq9 > 0,
+              true = NA_real_,
+              false = phq9.sum_score_raw,
+              missing = NA_real_
+      )
+  )
+
+data_raw %>%
+  descr(phq9.sum_score_raw,
+        stats = "common")
+
+data_raw %>%
+  descr(phq9.sum_score,
+        stats = "common")
+```
+
+
+# GAD7
+
+Set minimum and maximum responses
+```{r gad7 minimum and maximum}
+gad7.minimum = 0
+gad7.maximum = 3
+```
+
+Create vector with scoring key: If the item is reversed coded use -1. 
+```{r gad7.items_key}
+gad7.items_key <- c(
+  1,  # "gad7.feeling_nervous_anxious_or_on_edge_numeric",
+  1,  # "gad7.control_worrying_stop_numeric",
+  1,  # "gad7.worrying_too_much_about_different_things_numeric",
+  1,  # "gad7.trouble_relaxing_numeric",
+  1,  # "gad7.sit_restless_hard_numeric",
+  1,  # "gad7.becoming_easily_annoyed_or_irritable_numeric",
+  1   # "gad7.awful_feeling_afraid_happen_numeric"
+  )
+```
+
+Create vector with items that are included in sum score
+```{r gad7.items}
+gad7.items_unc <- c(
+  "gad7.feeling_nervous_anxious_or_on_edge_numeric_unc",
+  "gad7.control_worrying_stop_numeric_unc",
+  "gad7.worrying_too_much_about_different_things_numeric_unc",
+  "gad7.trouble_relaxing_numeric_unc",
+  "gad7.sit_restless_hard_numeric_unc",
+  "gad7.becoming_easily_annoyed_or_irritable_numeric_unc",
+  "gad7.awful_feeling_afraid_happen_numeric_unc"
+  )
+
+gad7.items <- c(
+  "gad7.feeling_nervous_anxious_or_on_edge_numeric",
+  "gad7.control_worrying_stop_numeric",
+  "gad7.worrying_too_much_about_different_things_numeric",
+  "gad7.trouble_relaxing_numeric",
+  "gad7.sit_restless_hard_numeric",
+  "gad7.becoming_easily_annoyed_or_irritable_numeric",
+  "gad7.awful_feeling_afraid_happen_numeric"
+  )
+```
+
+Checking numeric variables and cleaning (GAD-7)
+This chunk can only be run once; otherwise you need to re-run the whole markdown
+```{r gad7 Checking numeric variables and cleaning}
+data_raw <- data_raw %>%
+  mutate(
+    across(all_of(gad7.items_unc),
+           .fns = list(clean = ~if_else(
+             condition = . < gad7.minimum | . > gad7.maximum,
+             true = NA_real_,
+             false = .
+           )
+           )
+    )
+  ) %>%
+  rename_at(
+    vars(contains( "_unc_clean")),
+    list(~paste0(gsub("_unc_clean", "", .)))
+  )
+```
+
+Check GAD-7 before setting missing to NA
+```{r gad7 double checking before setting missing to NA, include = FALSE}
+data_raw %>%
+  select(gad7.items) %>%
+  head()
+```
+
+Check GAD-7 after setting missing to NA
+```{r gad7 double checking after setting missing to NA}
+data_raw %>%
+  select(gad7.items) %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(cols = everything())
+```
+
+Calculate sum score for GAD-7
+The function does ignore NAs. Individuals need to be coded as NA afterwards
+```{r gad7 sum score}
+# Calculate sum score
+gad7.scored_items <- psych::scoreItems(
+  keys = gad7.items_key,
+  items = data_raw[gad7.items],
+  totals = TRUE, 
+  missing = TRUE, 
+  impute = 'none', 
+  min = gad7.minimum, 
+  max = gad7.maximum)
+
+# Add in column to tibble
+data_raw$gad7.sum_score_raw <- gad7.scored_items$scores
+
+# Look at values
+data_raw %>%
+  descr(
+    var = gad7.sum_score_raw,
+    stats = "common"
+  )
+```
+
+Missingness in GAD-9 (NAs per person)
+```{r gad7  missingness}
+data_raw <- data_raw %>%
+  mutate(
+    na_per_person_gad7 =         # variable for NA per person
+      rowSums(                       
+        is.na(.[gad7.items])
+      )
+  )
+
+data_raw %>%
+  freq(na_per_person_gad7,
+       cumul = F)
+```
+
+Missing values set to NA
+If a participant has one missing item, their sum score is set to NA
+```{r gad7 sum score if participant has one missing item sum score set to NA}
+data_raw <- data_raw %>%
+  mutate(
+    gad7.sum_score =
+      if_else(condition = na_per_person_gad7 > 0,
+              true = NA_real_,
+              false = gad7.sum_score_raw,
+              missing = NA_real_
+      )
+  )
+
+data_raw %>%
+  descr(gad7.sum_score_raw,
+        stats = "common")
+
+data_raw %>%
+  descr(gad7.sum_score,
+        stats = "common")
+```
+
+
+
+# PCL6
+
+Set minimum and maximum responses
+```{r pcl6 minimum and maximum}
+pcl6.minimum = 1
+pcl6.maximum = 5
+```
+
+
+Create vector with scoring key: If the item is reversed coded use -1. 
+There needs to be the correct number of values for each item in the questionnaire. 
+```{r pcl6.items_key}
+pcl6.items_key <- c(
+  1, # "pcl6.stressful_experience_repeated_images_numeric",
+  1, # "pcl6.stressful_experience_upset_reminded_numeric",
+  1, # "pcl6.stressful_situation_avoiding_activities_numeric",
+  1, # "pcl6.cut_people_feeling_distant_numeric",
+  1, # "pcl6.feeling_irritable_or_having_angry_outbursts_numeric",
+  1  # "pcl6.difficulty_concentrating_numeric"
+  )
+```
+
+Create vector with items that are included in sum score
+```{r pcl6.items}
+pcl6.items_unc <- c(
+  "pcl6.stressful_experience_repeated_images_numeric_unc",
+  "pcl6.stressful_experience_upset_reminded_numeric_unc",
+  "pcl6.stressful_situation_avoiding_activities_numeric_unc",
+  "pcl6.cut_people_feeling_distant_numeric_unc",
+  "pcl6.feeling_irritable_or_having_angry_outbursts_numeric_unc",
+  "pcl6.difficulty_concentrating_numeric_unc"
+)
+
+pcl6.items <- c(
+  "pcl6.stressful_experience_repeated_images_numeric",
+  "pcl6.stressful_experience_upset_reminded_numeric",
+  "pcl6.stressful_situation_avoiding_activities_numeric",
+  "pcl6.cut_people_feeling_distant_numeric",
+  "pcl6.feeling_irritable_or_having_angry_outbursts_numeric",
+  "pcl6.difficulty_concentrating_numeric"
+)
+```
+
+Checking numeric variables and cleaning (PCL-6)
+This chunk can only be run once; otherwise you need to re-run the whole markdown
+```{r pcl6 Checking numeric variables and cleaning}
+data_raw <- data_raw %>%
+  mutate(
+    across(all_of(pcl6.items_unc),
+           .fns = list(clean = ~if_else(
+             condition = . < pcl6.minimum  | . > pcl6.maximum,
+             true = NA_real_,
+             false = .
+           )
+           )
+    )
+  ) %>%
+  rename_at(
+    vars(contains( "_unc_clean")),
+    list(~paste0(gsub("_unc_clean", "", .)))
+  )
+```
+
+Check PCL-6 before setting missing to NA
+```{r pcl6 double checking before setting missing to NA, include = FALSE}
+data_raw %>%
+  select(pcl6.items) %>%
+  head()
+```
+
+Check PCL-6 after setting missing to NA
+```{r pcl6 double checking after setting missing to NA}
+data_raw %>%
+  select(pcl6.items) %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(cols = everything())
+```
+
+Calculate sum score for PCL-6
+The function does ignore NAs. Individuals need to be coded as NA afterwards
+```{r pcl6 sum score}
+# Calculate sum score
+pcl6.scored_items <- psych::scoreItems(
+  keys = pcl6.items_key,
+  items = data_raw[pcl6.items],
+  totals = TRUE, 
+  missing = TRUE, 
+  impute = 'none', 
+  min = pcl6.minimum, 
+  max = pcl6.maximum)
+
+# Add in column to tibble
+data_raw$pcl6.sum_score_raw <- pcl6.scored_items$scores
+
+# Look at values
+data_raw %>%
+  descr(
+    var = pcl6.sum_score_raw,
+    stats = "common"
+  )
+```
+
+Missingness in PCL-6  (NAs per person)
+```{r pcl6  missingness}
+data_raw <- data_raw %>%
+  mutate(
+    na_per_person_pcl6 =         # variable for NA per person
+      rowSums(                       
+        is.na(.[pcl6.items])
+      )
+  )
+
+data_raw %>%
+  freq(na_per_person_pcl6,
+       cumul = F)
+```
+
+Missing values set to NA
+If a participant has one missing item, their sum score is set to NA
+```{r pcl6 sum score if participant has one missing item sum score set to NA}
+data_raw <- data_raw %>%
+  mutate(
+    pcl6.sum_score =
+      if_else(condition = na_per_person_pcl6 > 0,
+              true = NA_real_,
+              false = pcl6.sum_score_raw,
+              missing = NA_real_
+      )
+  )
+
+data_raw %>%
+  descr(pcl6.sum_score_raw,
+        stats = "common")
+
+data_raw %>%
+  descr(pcl6.sum_score,
+        stats = "common")
+```
+
+
+# WSAS
+
+Set minimum and maximum responses
+```{r wsas minimum and maximum}
+wsas.minimum = 0
+wsas.maximum = 8
+```
+
+Create vector with scoring key: If the item is reversed coded use -1.
+There needs to be the correct number of values for each item in the questionnaire.
+```{r wsas.items_key}
+wsas.items_key <- c(
+  #1, # "wsas.areretired_becauseof_choose_job_numeric",
+  1,  # "wsas.home_management_impaired_problem_numeric",
+  1,  # "wsas.impaired_problem_social_leisure_numeric",
+  1,  # "wsas.impaired_problem_private_leisure_numeric",
+  1   # "wsas.maintain_close_relationships_form_numeric"
+  )
+```
+
+Create vector with items that are included in sum score
+```{r wsas.items}
+wsas.items_unc <- c(
+#  "wsas.areretired_becauseof_choose_job_numeric_unc",
+  "wsas.home_management_impaired_problem_numeric_unc",
+  "wsas.impaired_problem_social_leisure_numeric_unc",
+  "wsas.impaired_problem_private_leisure_numeric_unc",
+  "wsas.maintain_close_relationships_form_numeric_unc"
+)
+
+wsas.items <- c(
+#  "wsas.areretired_becauseof_choose_job_numeric",
+  "wsas.home_management_impaired_problem_numeric",
+  "wsas.impaired_problem_social_leisure_numeric",
+  "wsas.impaired_problem_private_leisure_numeric",
+  "wsas.maintain_close_relationships_form_numeric"
+
+ )
+```
+
+Checking numeric variables and cleaning (wsas)
+This chunk can only be run once; otherwise you need to re-run the whole markdown
+```{r wsas Checking numeric variables and cleaning}
+data_raw <- data_raw %>%
+  mutate(
+    across(all_of(wsas.items_unc),
+           .fns = list(clean = ~if_else(
+             condition = . < wsas.minimum | . > wsas.maximum,
+             true = NA_real_,
+             false = .
+           )
+           )
+    )
+  ) %>%
+  rename_at(
+    vars(contains( "_unc_clean")),
+    list(~paste0(gsub("_unc_clean", "", .)))
+  )
+```
+
+Check wsas before setting missing to NA
+```{r wsas double checking before setting missing to NA, include = FALSE}
+data_raw %>%
+  select(wsas.items) %>%
+  head()
+```
+
+Check wsas after setting missing to NA
+```{r wsas double checking after setting missing to NA}
+data_raw %>%
+  select(wsas.items) %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(cols = everything())
+```
+
+Calculate sum score for wsas
+The function does ignore NAs. Individuals need to be coded as NA afterwards
+```{r wsas sum score}
+# Calculate sum score
+wsas.scored_items <- psych::scoreItems(
+  keys = wsas.items_key,
+  items = data_raw[wsas.items],
+  totals = TRUE, 
+  missing = TRUE, 
+  impute = 'none', 
+  min = wsas.minimum, 
+  max = wsas.maximum)
+
+# Add in column to tibble
+data_raw$wsas.sum_score_raw <- wsas.scored_items$scores
+
+# Look at values
+data_raw %>%
+  descr(
+    var = wsas.sum_score_raw,
+    stats = "common"
+  )
+```
+
+Missingness in wsas (NAs per person)
+```{r wsas  missingness}
+data_raw <- data_raw %>%
+  mutate(
+    na_per_person_wsas =         # variable for NA per person
+      rowSums(                       
+        is.na(.[wsas.items])
+      )
+  )
+
+data_raw %>%
+  freq(na_per_person_wsas,
+       cumul = F)
+```
+
+Missing values set to NA
+If a participant has one missing item, their sum score is set to NA
+```{r wsas sum score if participant has one missing item sum score set to NA}
+data_raw <- data_raw %>%
+  mutate(
+    wsas.sum_score =
+      if_else(condition = na_per_person_wsas > 0,
+              true = NA_real_,
+              false = wsas.sum_score_raw,
+              missing = NA_real_
+      )
+  )
+
+data_raw %>%
+  descr(wsas.sum_score_raw,
+        stats = "common")
+
+data_raw %>%
+  descr(wsas.sum_score,
+        stats = "common")
+```
+
+
+# AUDIT
+
+Set minimum and maximum responses
+```{r audit minimum and maximum}
+audit.minimum = 0
+audit.maximum = 4
+```
+
+
+Create vector with scoring key: If the item is reversed coded use -1. 
+There needs to be the correct number of values for each item in the questionnaire. 
+```{r audit.items_key}
+audit.items_key <- c(
+  1, # "audit.stop_drinking_found_started_numeric_unc",
+  1, #  "audit.expected_failed_drinking_year_numeric_unc", 
+  1, #  "audit.morning_needed_drink_year_numeric_unc",     
+  1, #  "audit.guilt_remorse_drinking_feeling_numeric_unc", 
+  1, #  "audit.remember_unable_night_happened_numeric_unc", 
+  1, #  "audit.injured_result_drinking_numeric_unc",     
+  1, #  "audit.concerned_cut_suggested_relative_numeric_unc",
+  1, #  "audit.occasion_units_numeric_unc",
+  1, #  "audit.alcohol_drink_numeric_unc",     
+  1  #  "audit.units_alcohol_drink_drinking_numeric_unc"
+  )
+```
+
+Create vector with items that are included in sum score
+```{r audit.items}
+audit.items_unc <- c(
+  "audit.stop_drinking_found_started_numeric_unc",
+  "audit.expected_failed_drinking_year_numeric_unc", 
+  "audit.morning_needed_drink_year_numeric_unc",     
+  "audit.guilt_remorse_drinking_feeling_numeric_unc", 
+  "audit.remember_unable_night_happened_numeric_unc", 
+  "audit.injured_result_drinking_numeric_unc",     
+  "audit.concerned_cut_suggested_relative_numeric_unc",
+  "audit.occasion_units_numeric_unc",
+  "audit.alcohol_drink_numeric_unc",     
+  "audit.units_alcohol_drink_drinking_numeric_unc"
+  )
+
+audit.items <- c(
+  "audit.stop_drinking_found_started_numeric", # How often during the last year have you found that you were not able to stop drinking once you had started?
+  "audit.expected_failed_drinking_year_numeric", # How often during the last year have you failed to do what was normally expected from you because of drinking?
+  "audit.morning_needed_drink_year_numeric", # How often during the last year have you needed a first drink in the morning to get yourself going after a heavy drinking session?
+  "audit.guilt_remorse_drinking_feeling_numeric", # How often during the last year have you had a feeling of guilt or remorse after drinking?
+  "audit.remember_unable_night_happened_numeric", # How often during the last year have you been unable to remember what happened the night before because you had been drinking?
+  "audit.injured_result_drinking_numeric", # Have you or someone else been injured as a result of your drinking?
+  "audit.concerned_cut_suggested_relative_numeric", # Has a relative or friend or a doctor or another health worker been concerned about your drinking or suggested you cut down?
+  "audit.occasion_units_numeric", # How often do you have six or more units on one occasion?
+  "audit.alcohol_drink_numeric", # How often do you have a drink containing alcohol?
+  "audit.units_alcohol_drink_drinking_numeric" # How many units of alcohol do you drink on a typical day when you are drinking?
+)
+```
+
+Recoding the variable that is wrongly coded on qualtrics
+```{r audit Recoding the variable that is wrongly coded on qualtrics}
+data_raw <- data_raw %>%
+  mutate(
+    audit.units_alcohol_drink_drinking_numeric_unc =
+      recode(audit.units_alcohol_drink_drinking_numeric_unc,
+        `1` = 0,
+        `2` = 1,
+        `3` = 2,
+        `4` = 3,
+        `5` = 4,
+      )
+  )
+
+data_raw %>%
+  freq(audit.units_alcohol_drink_drinking_numeric_unc)
+```
+
+Checking numeric variables and cleaning (AUDIT)
+This chunk can only be run once; otherwise you need to re-run the whole markdown
+```{r audit Checking numeric variables and cleaning}
+data_raw <- data_raw %>%
+  mutate(
+    across(all_of(audit.items_unc),
+           .fns = list(clean = ~if_else(
+             condition = . < audit.minimum | . > audit.maximum,
+             true = NA_real_,
+             false = .
+           )
+           )
+    )
+  ) %>%
+  rename_at(
+    vars(contains( "_unc_clean")),
+    list(~paste0(gsub("_unc_clean", "", .)))
+  )
+```
+
+Check AUDIT before setting missing to NA
+```{r audit double checking before setting missing to NA, include = FALSE}
+data_raw %>%
+  select(audit.items) %>%
+  head()
+```
+
+Double checked that audit.injured_result_drinking_numeric and audit.concerned_cut_suggested_relative_numeric are coded as 0,2,4
+
+
+Check AUDIT after setting missing to NA
+```{r audit double checking after setting missing to NA}
+data_raw %>%
+  select(audit.items) %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(cols = everything())
+```
+
+Calculate sum score for audit
+The function does ignore NAs. Individuals need to be coded as NA afterwards
+```{r audit sum score}
+# Calculate sum score
+audit.scored_items <- psych::scoreItems(
+  keys = audit.items_key,
+  items = data_raw[audit.items],
+  totals = TRUE, 
+  missing = TRUE, 
+  impute = 'none', 
+  min = audit.minimum, 
+  max = audit.maximum)
+
+# Add in column to tibble
+data_raw$audit.sum_score_raw <- audit.scored_items$scores
+
+# Look at values
+data_raw %>%
+  descr(
+    var = audit.sum_score_raw,
+    stats = "common"
+  )
+```
+
+Missingness in audit (NAs per person)
+```{r audit  missingness}
+data_raw <- data_raw %>%
+  mutate(
+    na_per_person_audit =         # variable for NA per person
+      rowSums(                       
+        is.na(.[audit.items])
+      )
+  )
+
+data_raw %>%
+  freq(na_per_person_audit,
+       cumul = F)
+```
+
+Missing values set to NA
+If a participant has one missing item, their sum score is set to NA
+```{r audit sum score if participant has one missing item sum score set to NA}
+data_raw <- data_raw %>%
+  mutate(
+    audit.sum_score =
+      if_else(condition = na_per_person_audit > 0,
+              true = NA_real_,
+              false = audit.sum_score_raw,
+              missing = NA_real_
+      )
+  )
+
+data_raw %>%
+  descr(audit.sum_score_raw,
+        stats = "common")
+
+data_raw %>%
+  descr(audit.sum_score,
+        stats = "common")
+```
+
+
+
+# Demographic variable recoding 
+
+## sex
+Inspect Sex - no recoding needed
+```{r sex_unc Inspection}
+data_raw %>%
+  freq(sex_unc)
+```
+
+Copy the sex variable
+```{r sex cleaned}
+data_raw <- data_raw %>%
+  mutate(sex = sex_unc)
+
+data_raw %>%
+  freq(sex)
+```
+
+## Gender
+Inspect Gender - no recoding needed
+```{r gender_unc Inspection}
+data_raw %>%
+  freq(gender_unc)
+```
+
+```{r gender cleaned}
+data_raw <- data_raw %>%
+  mutate(gender = gender_unc)
+
+data_raw %>%
+  freq(gender)
+```
+
+
+## Transgender
+Inspect Transgender - no recoding needed
+```{r transgender_unc Inspection}
+data_raw %>%
+  freq(transgender_unc)
+```
+
+```{r transgender cleaned}
+data_raw <- data_raw %>%
+  mutate(transgender = transgender_unc)
+
+data_raw %>%
+  freq(transgender)
+```
+
+```{r - recode gender variable inc trans}
+data_raw <- data_raw %>%
+  mutate(gender_recode_numeric =
+           case_when(
+            gender == "Female" ~ 0,
+            gender == "Male" ~ 1,
+            gender == "Non-binary" ~ 2,
+            gender == "self-define" ~ 2,
+            transgender == "Yes" ~ 2,
+           ))
+```
+
+```{r gender_recode_numeric recode as factor}
+data_raw <- data_raw %>%
+  mutate(gender_recode = recode_factor(
+    gender_recode_numeric,
+    "0" = "Female",
+    "1" = "Male",
+    "2" = "Trans and Non-binary gender",)
+
+        )
+
+data_raw %>%
+  freq(gender_recode)
+```
+
+## Sexuality 
+Inspect Sexuality - recode to binary variable
+```{r sexuality_unc Inspection}
+data_raw %>%
+  freq(sexuality_unc)
+```
+
+Recode minoritised sexuality variable
+```{r - minoritised sexuality variable}
+data_raw <- data_raw %>%
+  mutate(sexuality_binary_numeric =
+  dplyr::if_else(
+    condition = sexuality_unc == "Heterosexual",
+    true = 0,
+    false = 1,
+    missing = NA_real_
+    )
+)
+
+data_raw %>%
+  freq(sexuality_binary_numeric)
+```
+
+Recode numeric binary sexuality variable to factor
+```{r - sexuality binary recode}
+data_raw <- data_raw %>%
+  mutate(sexuality_binary =
+           recode_factor(
+             sexuality_binary_numeric,
+             "0" = "Heterosexual",
+             "1" = "Minoritised sexuality"
+             )
+  )
+
+data_raw %>%
+  freq(sexuality_binary)
+```
+
+
+## Ethnicity
+Inspect ethnicity - recode to binary variable
+```{r ethnicity_unc Inspection}
+data_raw %>%
+  freq(ethnicity_unc)
+```
+
+Recode minoritised ethnicity variable
+```{r minoritised ethnicity variable}
+data_raw <- data_raw %>%
+  mutate(ethnicity_binary_numeric =
+           if_else(
+             condition = ethnicity_unc == "White",
+             true = 0,
+             false = 1,
+             missing = NA_real_
+             )
+         )
+
+data_raw %>%
+  freq(ethnicity_binary_numeric)
+```
+
+Recode numeric binary ethnicity variable to factor
+```{r ethnicity binary recode}
+data_raw$ethnicity_binary <-
+  recode_factor(data_raw$ethnicity_binary_numeric,
+                "0" = "White",
+                "1" = "Minoritised ethnicity"
+                
+  )
+
+data_raw %>%
+  freq(ethnicity_binary)
+```
+
+## Higher Education
+Inspect higher education - recode to binary variable
+```{r degree_unc Inspection}
+data_raw %>%
+  freq(degree_unc)
+```
+
+Inspect upper sixth education - recode to binary variable
+```{r uppersixth_unc Inspection}
+data_raw %>%
+  freq(uppersixth_unc)
+```
+
+Create categorical education variable
+Create a variable capturing individuals with A levels/AS levels or equivalent and/or a College or university degree
+```{r binary further education}
+data_raw <- data_raw %>%
+  mutate(education_binary_numeric =
+       dplyr::if_else(
+         condition = degree_unc == "College or university degree" |
+            uppersixth_unc == "A levels/AS levels or equivalent",
+         true = 0,
+         false = 1,
+         missing = NA_real_
+         )
+       )
+
+data_raw %>%
+  freq(education_binary_numeric)
+```
+
+Recode numeric to factor
+```{r binary education}
+data_raw <- data_raw %>%
+  mutate(education_binary =
+           recode_factor(
+             education_binary_numeric,
+             "1" = "No further education",
+             "0" = "Further education"
+             )
+  )
+
+data_raw %>%
+  freq(education_binary)
+```
+
+
+## Relationship
+Inspect relationship - recode to binary variable
+```{r marital_status_unc inspection}
+data_raw %>%
+  freq(marital_status_unc)
+```
+
+Create categorical education variable
+Create a variable capturing individuals relationship 
+```{r binary relationship }
+data_raw <- data_raw %>%
+  mutate(relationship_binary_numeric =
+           dplyr::if_else(
+         condition = marital_status_unc == "Married/civil partnership" |
+           marital_status_unc == "Relationship (living together)" |
+           marital_status_unc == "Relationship (not living together)",
+         true = 0,
+         false = 1,
+         missing = NA_real_
+         )
+         )
+
+data_raw %>%
+  freq(relationship_binary_numeric)
+```
+
+Recode relationship numeric to factor
+```{r binary relationship to factor}
+data_raw <- data_raw %>%
+  mutate(relationship_binary =
+           recode_factor(relationship_binary_numeric,
+                        "0" = "Married or in a relationship",
+                        "1" = "Not married or in a relationship"
+                         
+                         )
+  )
+
+data_raw %>%
+  freq(relationship_binary)
+```
+
+# Employment
+Inspect employment - no recoding needed
+```{r employment_unc Inspection}
+data_raw %>%
+  freq(employment_unc)
+```
+
+Copy the employment variable
+```{r employment cleaned}
+data_raw <- data_raw %>%
+  mutate(employment = employment_unc)
+
+data_raw %>%
+  freq(employment)
+```
+
+#Dependent ED Variables and cleaning
+
+MHD = 'Have you ever been diagnosed with one or more of the following mental health problems or neurodevelopmental disorders by a professional, even if you don't have it currently? By professional we mean: any doctor, nurse or person with specialist training . Please include disorders even if you did not need treatment for them or if you did not agree with the diagnosis. Select ALL that apply:'
+
+## Anorexia nervosa
+```{r mhd.an_unc Inspection}
+data_raw %>% 
+  freq(mhd.an_unc)
+```
+
+```{r mhd.an_numeric - Copy into clean column}
+data_raw <- data_raw %>% 
+  mutate(mhd.an = mhd.an_unc)
+
+data_raw %>% 
+  freq(mhd.an)
+```
+
+## Aytpical anorexia nervosa
+```{r mhd.aan_numeric_unc Inspection}
+data_raw %>% 
+  freq(mhd.atypical_an_unc)
+```
+
+```{r mhd.aan_numeric - Copy into clean column}
+data_raw <- data_raw %>% 
+  mutate(mhd.atypical_an = mhd.atypical_an_unc)
+
+data_raw %>% 
+  freq(mhd.atypical_an)
+```
+
+## Bulimia nervosa
+```{r mhd.bn_unc Inspection}
+data_raw %>% 
+  freq(mhd.bn_unc)
+```
+
+```{r mhd.bn_unc - Copy into clean column}
+data_raw <- data_raw %>% 
+  mutate(mhd.bn = mhd.bn_unc)
+
+data_raw %>% 
+  freq(mhd.bn)
+```
+
+## Binge-eating disorder
+```{r mhd.bed_unc Inspection}
+data_raw %>% 
+  freq(mhd.bed_unc)
+```
+
+```{r mhd.bed_unc - Copy into clean column}
+data_raw <- data_raw %>% 
+  mutate(mhd.bed = mhd.bed_unc)
+
+data_raw %>% 
+  freq(mhd.bed)
+```
+
+Create hierarchical eating disorder diagnosis
+```{r Create ED_hierarchical_numeric variable}
+data_raw <- data_raw %>%
+  mutate(ED_hierarchical_numeric =
+           case_when(
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 1 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 0 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 1 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 0 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 0 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 1 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 1 ~ 1,
+             mhd.an_numeric_unc == 1 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 0 ~ 1,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 1 ~ 1,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 0 ~ 1,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 1 ~ 1,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 1 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 0 ~ 1,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 1 ~ 2,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 1 & mhd.bed_numeric_unc == 0 ~ 2,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 1 ~ 3,
+             mhd.an_numeric_unc == 0 & mhd.atypical_an_numeric_unc == 0 & mhd.bn_numeric_unc == 0 & mhd.bed_numeric_unc == 0 ~ 0
+             )
+         )
+```
+
+```{r ED_hierarchical_numeric recode as factor}
+data_raw <- data_raw %>%
+  mutate(ED_hierarchical = recode_factor(
+    ED_hierarchical_numeric,
+    "0" = "Anxiety/depression",
+    "1" = "Anorexia nervosa",
+    "2" = "Bulimia nervosa",
+    "3" = "Binge-eating disorder"
+         )
+  )
+
+```
+
+Double checking
+```{r, include = FALSE}
+data_raw %>%
+  select(
+    ED_hierarchical,
+    mhd.an,
+    mhd.atypical_an,
+    mhd.bn,
+    mhd.bed
+  )
+```
+Double checking if some of the ED has been coded as NA
+```{r ED_hierarchical NA, include = FALSE}
+data_raw %>%
+  select(
+    ED_hierarchical,
+    mhd.an,
+    mhd.atypical_an,
+    mhd.bn,
+    mhd.bed
+  ) %>%
+  filter(is.na(ED_hierarchical))
+```
+
+Set AN as reference group for later sensitivity analsysis
+```{r ED_hierarchical_numeric recode as factor - anorexia reference}
+data_raw <- data_raw %>%
+  mutate(ED_hierarchical_AN_reference_numeric =
+           case_when(
+             ED_hierarchical == "Anxiety/depression" ~ 3,
+             ED_hierarchical == "Binge-eating disorder" ~ 2,
+             ED_hierarchical == "Bulimia nervosa" ~ 1,
+             ED_hierarchical == "Anorexia nervosa" ~ 0)
+           )
+             
+```
+
+```{r ED_hierarchical_AN_reference_numeric recode as factor - anorexia reference}
+data_raw <- data_raw %>%
+  mutate(ED_hierarchical_AN_reference = recode_factor(
+    ED_hierarchical_AN_reference_numeric,
+    "0" = "Anorexia nervosa",
+    "1" = "Bulimia nervosa",
+    "2" = "Binge-eating disorder",
+    "3" = "Anxiety/depression"
+         )
+  )
+```
+
+# New data frame after initial cleaning and clean dependent factor
+```{r}
+data_raw <- data_raw
+```
+
+# Childhood maltreatment data
+
+CTS scoring / levels: Never true (1), Rarely true (2), Sometimes true (3), Often true (4), Very often true (5). 
+
+## Childhood sexual abuse (CSA)
+
+from CTS-5 item: 'Someone molested me (sexually)' – cut off score of 2+ 
+```{r Childhood sexual abuse Inspection}
+data_raw %>%
+  freq(CSA_unc)
+```
+
+Recode to binary sexual abuse variable
+```{r Childhood_sexual_abuse_binary_numeric creation}
+data_raw <- data_raw %>%
+  mutate(Childhood_sexual_abuse_binary_numeric =
+           dplyr::if_else(
+             CSA_unc == "Rarely true" |
+               CSA_unc == "Sometimes true" |
+               CSA_unc == "Often true" |
+               CSA_unc == "Very often true",
+             true = 1,
+             false = 0,
+             missing = NA_real_
+             )
+         )
+
+data_raw %>%
+  freq(Childhood_sexual_abuse_binary_numeric)
+```
+
+Recode numeric sexual abuse variable to binary
+```{r Childhood_sexual_abuse_binary childhood sexual abuse}
+data_raw <- data_raw %>%
+  mutate(Childhood_sexual_abuse_binary =
+           recode_factor(Childhood_sexual_abuse_binary_numeric,
+                         "0" = "No sexual abuse",
+                         "1" = "Childhood sexual abuse"
+                         )
+  )
+
+data_raw %>%
+  freq(Childhood_sexual_abuse_binary)
+```
+All participants have answered this question, 0 missing responses. 
+
+## Childhood emotional abuse (CEA)
+
+from CTS-5 item: 'I felt that someone in my family hated me' – cut off score of 3 +
+```{r Childhood emotional abuse Inspection}
+data_raw %>%
+  freq(CEA_unc)
+```
+
+Recode to binary emotional abuse variable
+```{r Childhood_emotional_abuse_binary_numeric creation}
+data_raw <- data_raw %>%
+  mutate(Childhood_emotional_abuse_binary_numeric =
+           dplyr::if_else(
+               CEA_unc == "Sometimes true" |
+               CEA_unc == "Often true" |
+               CEA_unc == "Very often true",
+             true = 1,
+             false = 0,
+             missing = NA_real_
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_emotional_abuse_binary_numeric)
+```
+
+Recode numeric emotional abuse variable to binary
+```{r - emotional abuse}
+data_raw <- data_raw %>%
+  mutate(Childhood_emotional_abuse_binary =
+           recode_factor(Childhood_emotional_abuse_binary_numeric,
+                         "0" = "No emotional abuse",
+                         "1" = "Childhood emotional abuse"
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_emotional_abuse_binary)
+```
+All participants have answered this question, 0 missing responses.
+
+## Childhood physical abuse
+
+from CTS-5 item: 'People in my family hit me so hard that it left me with bruises or marks' – cut off score of 3+
+
+```{r Childhood physical abuse Inspection}
+data_raw %>%
+  freq(CPA_unc)
+```
+
+Recode to binary physical abuse variable
+```{r Childhood_physical_abuse_binary_numeric creation}
+data_raw <- data_raw %>%
+  mutate(Childhood_physical_abuse_binary_numeric =
+           dplyr::if_else(
+               CPA_unc == "Sometimes true" |
+               CPA_unc == "Often true" |
+               CPA_unc == "Very often true",
+             true = 1,
+             false = 0,
+             missing = NA_real_
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_physical_abuse_binary_numeric)
+```
+
+Recode numeric physical abuse variable to binary
+```{r - physical abuse}
+data_raw <- data_raw %>%
+  mutate(Childhood_physical_abuse_binary =
+           recode_factor(Childhood_physical_abuse_binary_numeric,
+                         "0" = "No physical abuse",
+                         "1" = "Childhood physical abuse"
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_physical_abuse_binary)
+```
+All participants have answered this question, 0 missing responses. 
+
+## Childhood emotional neglect (CEN)
+
+from CTS-5 item: 'I felt loved' – cut off score of 2 or less 
+```{r Childhood emotional neglect Inspection}
+data_raw %>%
+  freq(CEN_unc)
+```
+
+Recode to binary emotional neglect variable
+```{r Childhood_emotional_neglect_binary_numeric creation}
+data_raw <- data_raw %>%
+  mutate(Childhood_emotional_neglect_binary_numeric =
+           dplyr::if_else(
+             CEN_unc == "Never true" |
+             CEN_unc == "Rarely true",
+             true = 1,
+             false = 0,
+             missing = NA_real_
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_emotional_neglect_binary_numeric)
+```
+
+
+Recode numeric emotional neglect variable to binary
+```{r - emotional neglect}
+data_raw <- data_raw %>%
+  mutate(Childhood_emotional_neglect_binary =
+           recode_factor(Childhood_emotional_neglect_binary_numeric,
+                         "0" = "No emotional neglect",
+                         "1" = "Childhood emotional neglect"
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_emotional_neglect_binary)
+```
+All participants have answered this question, 0 missing responses.
+
+## Childhood physical neglect (CEN)
+
+from CTS-5 item: 'There was someone to take me to the doctor if I needed it' - cut off score of 2 or less
+```{r Childhood physical neglect Inspection}
+data_raw %>%
+  freq(CPN_unc)
+```
+
+Recode to binary physical neglect variable
+```{r Childhood_physical_neglect_binary_numeric creation}
+data_raw <- data_raw %>%
+  mutate(Childhood_physical_neglect_binary_numeric =
+           dplyr::if_else(
+             CPN_unc == "Never true" |
+             CPN_unc == "Rarely true",
+             true = 1,
+             false = 0,
+             missing = NA_real_
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_physical_neglect_binary_numeric)
+```
+
+
+Recode numeric physical neglect variable to binary
+```{r - physical neglect}
+data_raw <- data_raw %>%
+  mutate(Childhood_physical_neglect_binary =
+           recode_factor(Childhood_physical_neglect_binary_numeric,
+                         "0" = "No physical neglect",
+                         "1" = "Childhood physical neglect"
+           )
+  )
+
+data_raw %>%
+  freq(Childhood_physical_neglect_binary)
+```
+All participants have answered this question, 0 missing responses. 
+0 missing cases. 
+
+# Childhood maltreatment
+
+## Any childhood maltreatment
+```{r}
+data_raw <- data_raw %>%
+  mutate(Any_childhood_maltreatment_binary_numeric =
+           dplyr::if_else(
+             Childhood_sexual_abuse_binary == "Childhood sexual abuse" |
+               Childhood_emotional_abuse_binary == "Childhood emotional abuse" |
+               Childhood_physical_abuse_binary == "Childhood physical abuse" |
+               Childhood_emotional_neglect_binary == "Childhood emotional neglect" |
+               Childhood_physical_neglect_binary == "Childhood physical neglect",
+         true = 1,
+         false = 0,
+         missing = NA_real_
+         )
+         )
+
+data_raw %>%
+  freq(Any_childhood_maltreatment_binary_numeric)
+```
+
+Recode numeric any childhood maltreatment variable to binary
+```{r - any childhood abuse}
+data_raw <- data_raw %>%
+  mutate(Any_childhood_maltreatment_binary =
+           recode_factor(Any_childhood_maltreatment_binary_numeric,
+                         "0" = "No childhood maltreatment",
+                         "1" = "Any childhood maltreatment"
+                         )
+  )
+
+data_raw %>%
+  freq(Any_childhood_maltreatment_binary)
+```
+All participants have answered the question: 0 missing responses. 55.0% of sample report exposure to some form of childhood maltreatment. 
+
+## Count variable for count of different types of maltreatment reported
+
+dplyr::summarise() makes it really easy to summarise values across rows within one column. When combined with rowwise() it also makes it easy to summarise values across columns within one row. https://dplyr.tidyverse.org/articles/rowwise.html
+
+Vector of binary childhood maltreatment variables
+```{r childhood_maltreatment_variables vector}
+childhood_maltreatment_variables <-
+  c(
+    "Childhood_sexual_abuse_binary_numeric",
+    "Childhood_emotional_abuse_binary_numeric",
+    "Childhood_physical_abuse_binary_numeric",
+    "Childhood_emotional_neglect_binary_numeric",
+    "Childhood_physical_neglect_binary_numeric"
+  )
+
+childhood_maltreatment_variables
+```
+
+
+```{r Any_childhood_maltreatment_count_numeric create childhood maltreatment count}
+data_raw <- data_raw %>%
+  rowwise(ID_unc) %>%
+  mutate(Any_childhood_maltreatment_count_numeric =
+           sum(
+             across(childhood_maltreatment_variables)
+             )
+         )
+
+data_raw %>%
+  freq(Any_childhood_maltreatment_count_numeric)
+```
+
+Childhood maltreatments per eating disorder
+```{r}
+data_raw %>%
+  group_by(ED_hierarchical) %>%
+  count(Any_childhood_maltreatment_count_numeric)
+```
+
+
+Recode maltreatment count into ordinal maltreatment variable
+```{r maltreatment count into ordinal maltreatment variable}
+data_raw <- data_raw %>% 
+  mutate(
+    Any_childhood_maltreatment_count =
+      cut(Any_childhood_maltreatment_count_numeric,
+                        breaks = c(0, 1, 2, 3, 4, Inf),
+                        labels = c("0", "1", "2", "3", "4+"),
+                        right  = FALSE
+)
+)
+
+
+data_raw %>%
+  freq(Any_childhood_maltreatment_count,
+       cumul = FALSE)
+```
+No missingness on the childhood maltreatment independent variables. 
+
+
+
+
+# Exclusions for missingness
+
+## sex
+Exclude participants with missing sex
+```{r sex missing}
+dim(data_raw)
+
+data_excl_sex <- data_raw %>%
+  drop_na(sex)
+
+nrow(data_excl_sex)-nrow(data_raw)
+```
+Every participant reported their biological sex
+
+
+## age
+Exclude participants with missing age
+```{r missing age in sample}
+dim(data_excl_sex)
+
+data_excl_sex_age <- data_excl_sex %>%
+  drop_na(age)
+
+nrow(data_excl_sex_age)-nrow(data_excl_sex)
+```
+One participant did not report their age
+
+
+## height in metres (m)
+Exclude participants that had implausible height values
+```{r dem.height_current_metres exclusion participants with implausible values}
+dim(data_excl_sex_age)
+
+data_excl_sex_age_height <- data_excl_sex_age %>%
+  drop_na(dem.height_current_metres)
+
+nrow(data_excl_sex_age_height)-nrow(data_excl_sex_age)
+```
+An additional 336 participants had implausible height in metres values
+
+## weight
+Exclude participants that had implausible weight values. 
+```{r weight exclusion participants with implausible values}
+dim(data_excl_sex_age_height)
+
+data_excl_sex_age_height_weight <- data_excl_sex_age_height %>%
+  drop_na(dem_current_kg)
+
+nrow(data_excl_sex_age_height_weight)-nrow(data_excl_sex_age_height)
+```
+An additional 783 people excluded because of implausible weight values. 
+
+
+## bmi
+Exclude participants that had implausible BMI values
+```{r bmi exclusion participants with implausible values}
+dim(data_excl_sex_age_height_weight)
+
+data_excl_sex_age_height_weight_bmi <- data_excl_sex_age_height_weight %>%
+  drop_na(dem_bmi_current)
+
+nrow(data_excl_sex_age_height_weight_bmi)-nrow(data_excl_sex_age_height_weight)
+```
+
+An additional 158 participants have implausible BMI values
+
+
+## sexuality
+Exclude participants with missing sexuality
+```{r missing sexuality in sample}
+dim(data_excl_sex_age_height_weight_bmi)
+
+data_excl_sex_age_height_weight_bmi_sexuality <- data_excl_sex_age_height_weight_bmi %>%
+  drop_na(sexuality_binary)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality)-nrow(data_excl_sex_age_height_weight_bmi)
+```
+An additional 490 participants did not report their sexuality
+
+## gender
+Exclude participants with missing gender
+```{r missing gender in sample}
+dim(data_excl_sex_age_height_weight_bmi_sexuality)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender <- data_excl_sex_age_height_weight_bmi_sexuality %>%
+  drop_na(gender_recode)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender)-nrow(data_excl_sex_age_height_weight_bmi_sexuality)
+```
+An additional 146 participants did not report their gender
+
+## ethnicity
+Exclude participants with missing ethnicity
+```{r missing ethnicity in sample}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity <- data_excl_sex_age_height_weight_bmi_sexuality_gender %>%
+  drop_na(ethnicity_unc)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender)
+```
+An additional 66 participants did not report their ethnicity
+
+## relationship
+Exclude participants with missing relationship
+```{r missing relationship in sample}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity %>%
+  drop_na(relationship_binary)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity)
+```
+An additional 80 participants did not report their relationship status.
+
+## education
+Exclude participants with missing educational attainment
+```{r missing education in sample}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship %>%
+  drop_na(education_binary)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship)
+```
+An additional 6 participants did not report their education level
+
+
+## Eating disorders
+Exclude participants who did not report their eating disorder diagnosis
+```{r missing eating disorders in sample}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans %>%
+  drop_na(ED_hierarchical)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans)
+```
+An additional 1171 participants did not answer the questions about lifetime eating disorders
+
+## PHQ9
+Exclude participants that had missing PHQ-9 values
+```{r PHQ exclusion participants with implausible values}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED %>%
+  drop_na(phq9.sum_score)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED)
+```
+An additional 98 individuals excluded because they are missing one item on the PHQ9
+
+
+## GAD7
+Exclude participants that had missing GAD-7 values
+```{r gad exclusion participants with implausible values}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq %>%
+  drop_na(gad7.sum_score)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq)
+```
+An additional 49 people having missing GAD-7 data and are therefore dropped. 
+
+
+## PCL
+Exclude participants that had missing PCL values
+```{r PCL exclusion participants with implausible values}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad %>%
+  drop_na(pcl6.sum_score)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad)
+```
+An additional 116 people did not answer one item on the PCL-6 questionnaire and are therefore dropped. 
+
+## WSAS
+Exclude participants that had missing wsas values
+```{r wsas exclusion participants with implausible values}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl %>%
+  drop_na(wsas.sum_score)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl)
+```
+An additional 588 people did not answer one of the items of the WSAS questionnaire and are therefore dropped.
+
+
+## Employment
+Exclude participants that had missing Employment values
+```{r Employment exclusion participants with implausible values}
+dim(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas)
+
+data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas_employment <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas %>%
+  drop_na(employment)
+
+nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas_employment)-nrow(data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas)
+```
+An additional 55 people did not answer one of the items of the employment questionnaire and are therefore dropped.
+
+
+# Tidy tibble for analysis
+```{r Tidy tibble for analysis}
+CMED_data <- data_excl_sex_age_height_weight_bmi_sexuality_gender_ethnicity_relationship_education_trans_ED_phq_gad_pcl_wsas_audit_employment
+```
+
+## Save tidy data
+```{r Save rds file CMED_data}
+#Export data
+saveRDS(CMED_data,
+  file = paste0("../../data_clean/CMED_data",date,".rds")
+)
+```
+
