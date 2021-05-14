@@ -1,0 +1,887 @@
+---
+title: "Maltreatment_Project_TP"
+author: "Tom Price"
+date: "12.04.21"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+# Set markdown options
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE,
+                      comment=NA,
+                      prompt=FALSE,
+                      cache=FALSE)
+```
+
+# Clear workspace
+```{r clear workspace}
+remove(list = ls())
+```
+
+
+# Retrieve the recent date
+```{r recent date}
+date = Sys.Date()
+date
+```
+
+## Install Packages
+```{r Install Packages}
+#install.packages("knitr")
+#install.packages("broom")
+#install.packages("summarytools")
+#install.packages("psych")
+#install.packages("polycor")
+#install.packages("gt")
+#install.packages("skimr")
+#install.packages("tidyverse")
+#install.packages("kableExtra")
+#install.packages("freqtables")
+```
+
+## Load Packages
+```{r Load Packages}
+library(knitr)
+library(broom)
+library(summarytools)
+library(psych)
+library(polycor)
+library(gt)
+library(skimr)
+library(kableExtra)
+library(freqtables)
+library(tidyverse)
+```
+
+
+# Define colours for plotting
+```{r GLAD colour palette}
+glad_palette = c("#efc00b", "#b7dee8")
+palette=glad_palette
+```
+
+# Add_numeric function
+```{r numeric conversion function}
+#Function used to convert character variables into numeric variables.
+add_numeric <- function(dat,exclude_numeric = "ID") {
+  exclude <- sapply(dat, function(col) {
+any(is.na(attr(col, "labels")))
+  })
+exclude_col <- colnames(dat)[exclude]
+dat_fct <- dat
+dat_fct[!colnames(dat_fct) %in% exclude_col] <- 
+sjlabelled::as_label(dat_fct[!colnames(dat_fct) %in% exclude_col])
+dat_fct_num <- dat[!colnames(dat) %in% c(exclude_col,exclude_numeric)]
+colnames(dat_fct_num) <- paste(colnames(dat_fct_num), "numeric", sep = "_")
+ return(bind_cols(dat_fct, dat_fct_num))
+} 
+
+```
+
+# Read in individual questionnaires
+## Demographics
+```{r Demographics read in data}
+dem.glad.1 <- readRDS("../../data_raw/16.04.2021/dem_glad.rds")
+dim(dem.glad.1)
+
+#dem.glad.1$startDate <- NULL
+#dem.glad.1$endDate <- NULL
+
+colnames(dem.glad.1)
+```
+
+Summary demographics file
+```{r demographics summary before recoding}
+dem.glad.1 %>%
+  select(
+    age = dem.how_old_are_you_now.txt,
+    sex = dem.select_questionnaire_items_medical,
+    gender = dem.which_gender_do_you_identify_with,
+    transgender = dem.do_you_identify_as_transgender,
+    ethnicity = dem.questions_based_ethnic_origin, 
+    sexuality = dem.what_is_your_sexual_orientation,
+    degree = dem.college_or_university_degree,   
+    uppersixth = dem.a_levelsas_levels_or_equivalent,  
+    years_in_education = dem.school_education_school_years.txt,
+    employment = dem.what_is_your_current_employment_status,
+    marital_status = dem.what_is_your_current_maritalrelationship_status,
+    pregnant_ever = dem.have_you_ever_been_pregnant,     
+    degree = dem.college_or_university_degree,
+    dem_current_cm = dem.what_is_your_current_height,
+    dem_current_ft = dem.what_is_your_current_height.1,
+    dem_current_in = dem.what_is_your_current_height.2,
+    dem_current_kg = dem.current_weight_pregnant_weight,
+    dem_current_st = dem.current_weight_pregnant_weight.1,
+    dem_current_lb = dem.current_weight_pregnant_weight.2
+  ) %>%
+  skim()
+```
+
+Select variables and read them in to single rds
+```{r demographics select variables}
+dem.glad.1.id <- dem.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+    ID = externalDataReference,
+        startDate,
+    endDate,
+    age = dem.how_old_are_you_now.txt,
+    sex = dem.select_questionnaire_items_medical,
+    gender = dem.which_gender_do_you_identify_with,
+    transgender = dem.do_you_identify_as_transgender,
+    ethnicity = dem.questions_based_ethnic_origin, 
+    sexuality = dem.what_is_your_sexual_orientation,
+    degree = dem.college_or_university_degree,   
+    uppersixth = dem.a_levelsas_levels_or_equivalent,  
+    years_in_education = dem.school_education_school_years.txt,
+    employment = dem.what_is_your_current_employment_status,
+    marital_status = dem.what_is_your_current_maritalrelationship_status,
+    pregnant_ever = dem.have_you_ever_been_pregnant,     
+    degree = dem.college_or_university_degree,
+    dem_current_cm = dem.what_is_your_current_height,
+    dem_current_ft = dem.what_is_your_current_height.1,
+    dem_current_in = dem.what_is_your_current_height.2,
+    dem_current_kg = dem.current_weight_pregnant_weight,
+    dem_current_st = dem.current_weight_pregnant_weight.1,
+    dem_current_lb = dem.current_weight_pregnant_weight.2) %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor,  ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(dem.glad.1.id)
+
+#Differences
+dim(dem.glad.1)[1]-dim(dem.glad.1.id)[1]
+```
+
+Demographics selected
+```{r Demographics double check}
+skim(dem.glad.1.id)
+```
+
+## Mental Health Diagnoses
+```{r Mentalh health diagnoses read in data}
+mhd.glad.1 <- readRDS("../../data_raw/16.04.2021/mhd_glad.rds")
+dim(mhd.glad.1)
+
+mhd.glad.1$startDate <- NULL
+mhd.glad.1$endDate <- NULL
+
+colnames(mhd.glad.1)
+```
+
+Summary mental health file
+```{r mental health summary before recoding}
+mhd.glad.1 %>%
+  select(
+    mhd.an,
+    mhd.atypical_an,
+    mhd.bn,
+    mhd.bed) %>%
+  skim()
+```
+
+Select variables and read them in to single rds
+```{r mental health select variables}
+exclude_cols_dem <- c("ID",
+                  "startDate",
+                  "endDate_GLAD")
+
+mhd.glad.1.id <- mhd.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+         ID = externalDataReference, # ID
+         #mhd.mdd,
+         #mhd.perinatal_depression,
+         #mhd.pmdd,
+         #mhd.bipolar_disorder,
+         #mhd.gad,
+         #mhd.social_anxiety,
+         #mhd.specific_phobia,
+         #mhd.agoraphobia,
+         #mhd.panic_disorder,
+         #mhd.panic_attacks,
+         #mhd.ptsd,
+         #mhd.ocd,
+         #mhd.bdd,
+         #mhd.other_ocd,
+         #mhd.dont_know,
+         #mhd.prefer_not_to_answer,
+         mhd.an,
+         mhd.atypical_an,
+         mhd.bn,
+         mhd.bed,
+         #mhd.schizophrenia,
+         #mhd.schizoaffective,
+         #mhd.psychosis,
+         #mhd.personality_disorder,
+         #mhd.asd,
+         #mhd.addadhd,
+         #mhd.other,
+         #mhd.personality_disorder_diagnosed
+         ) %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(mhd.glad.1.id)
+
+#Differences
+dim(mhd.glad.1)[1]-dim(mhd.glad.1.id)[1]
+```
+
+Mental health diagnoses selected
+```{r Mental health diagnoses double check}
+skim(mhd.glad.1.id)
+```
+
+
+## CTS: Childhood Maltreatment (CM)
+Maltreatment was measured using the childhood maltreatment screener (CTS; Glaesmer et al., 2013)
+```{r CTS read in data}
+CTS.glad.1 <- readRDS("../../data_raw/16.04.2021/cts_glad.rds")
+dim(CTS.glad.1)
+
+CTS.glad.1$startDate <- NULL
+CTS.glad.1$endDate <- NULL
+
+colnames(CTS.glad.1)
+```
+
+Double checking what happens if a participant skip the questionnaire
+```{r Double checking what happens if a participant skip the questionnaire}
+CTS.glad.1 %>%
+  filter(cts.visit_www_skip_button == 0) %>%
+  head()
+```
+
+Number of participants that skipped the CTS questionnaire
+```{r Number of participants that skipped the CTS questionnaire}
+CTS.glad.1 %>%
+  filter(cts.visit_www_skip_button == 0) %>%
+  nrow()
+```
+449 elected to skip the CTS questionnaire in response to the item: '‘This section asks about your childhood and some possible stresses and strains of life. If this is too difficult, then please use the skip button below.’ 
+
+Summary maltreatment file
+```{r CTS summary before recoding}
+CTS.glad.1 %>%
+  select(
+    CEN = cts.i_felt_loved,
+    CEA = cts.felt_family_hated,
+    CPN = cts.needed_doctor,
+    CPA = cts.family_hit_bruises_left,
+    CSA = cts.someone_molested_me
+  ) %>%
+  skim()
+```
+
+Select variables and read them in to single rds
+```{r CTS select variables}
+CTS.glad.1.id <- CTS.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+    ID = externalDataReference, # ID
+         CEN = cts.i_felt_loved,
+         CEA = cts.felt_family_hated,
+         CPN = cts.needed_doctor,
+         CPA = cts.family_hit_bruises_left,
+         CSA = cts.someone_molested_me)  %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(CTS.glad.1.id)
+
+#Differences
+dim(CTS.glad.1)[1]-dim(CTS.glad.1.id)[1]
+```
+
+Childhood maltreatment variables selected
+```{r CTS double check}
+skim(CTS.glad.1.id)
+```
+
+## Patient health questionnaire - 9 (PHQ-9)
+Current depression syptoms were measured using the PHQ-9
+```{r PHQ-9 read in data}
+PHQ9.glad.1 <- readRDS("../../data_raw/16.04.2021/phq9_glad.rds")
+dim(PHQ9.glad.1)
+
+#PHQ9.glad.1$startDate <- NULL
+#PHQ9.glad.1$endDate <- NULL
+
+colnames(PHQ9.glad.1)
+```
+
+Summary PHQ-9 file
+```{r PHQ-9 summary before recoding}
+PHQ9.glad.1 %>%
+  select(
+    phq9.little_interest_or_pleasure_in_doing_things,
+    phq9.feeling_down_depressed_or_hopeless,         
+    phq9.staying_asleep_sleeping_trouble,          
+    phq9.feeling_tired_or_having_little_energy,      
+    phq9.poor_appetite_or_overeating,             
+    phq9.feeling_bad_failure_family,                 
+    phq9.trouble_concentrating_reading_newspaper,    
+    phq9.moving_fidgety_noticed_opposite,          
+    phq9.dead_hurting_thoughts
+  ) %>%
+skim()
+```
+
+Select variables and read them in to single rds
+```{r PHQ-9 select variables}
+PHQ9.glad.1.id <- PHQ9.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+ #   ID = externalDataReference, # ID hashed out to merge on startDate and endDate
+    startDate,
+    endDate,
+         phq9.little_interest_or_pleasure_in_doing_things,
+         phq9.feeling_down_depressed_or_hopeless,         
+         phq9.staying_asleep_sleeping_trouble,          
+         phq9.feeling_tired_or_having_little_energy,      
+         phq9.poor_appetite_or_overeating,             
+         phq9.feeling_bad_failure_family,                 
+         phq9.trouble_concentrating_reading_newspaper,    
+         phq9.moving_fidgety_noticed_opposite,          
+         phq9.dead_hurting_thoughts)  %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(PHQ9.glad.1.id)
+
+#Differences
+dim(PHQ9.glad.1)[1]-dim(PHQ9.glad.1.id)[1]
+```
+
+PHQ-9 selected
+```{r PHQ-9 double check}
+skim(PHQ9.glad.1.id)
+```
+
+## Generalised Anxiety Disorder Assessment (GAD-7)
+Current anxiety symptoms were measured using the GAD-7
+```{r GAD-7 read in data}
+GAD7.glad.1 <- readRDS("../../data_raw/16.04.2021/gad7_glad.rds")
+dim(GAD7.glad.1)
+
+#GAD7.glad.1$startDate <- NULL
+#GAD7.glad.1$endDate <- NULL
+
+colnames(GAD7.glad.1)
+```
+
+Summary GAD-7 file
+```{r GAD-7 summary before recoding}
+GAD7.glad.1 %>%
+  select(
+    gad7.feeling_nervous_anxious_or_on_edge,
+    gad7.control_worrying_stop,         
+    gad7.worrying_too_much_about_different_things,          
+    gad7.trouble_relaxing,      
+    gad7.sit_restless_hard,             
+    gad7.becoming_easily_annoyed_or_irritable,                 
+    gad7.awful_feeling_afraid_happen
+  ) %>%
+skim()
+```
+
+Select variables and read them in to single rds
+```{r GAD-7 select variables}
+GAD7.glad.1.id <- GAD7.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+#    ID = externalDataReference, # ID hashed out to merge on startDate and endDate
+        startDate,
+    endDate,
+         gad7.feeling_nervous_anxious_or_on_edge,
+         gad7.control_worrying_stop,         
+         gad7.worrying_too_much_about_different_things,          
+         gad7.trouble_relaxing,      
+         gad7.sit_restless_hard,             
+         gad7.becoming_easily_annoyed_or_irritable,                 
+         gad7.awful_feeling_afraid_happen)  %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(GAD7.glad.1.id)
+
+#Differences
+dim(GAD7.glad.1)[1]-dim(GAD7.glad.1.id)[1]
+```
+
+GAD-7 selected
+```{r GAD-7 double check}
+skim(GAD7.glad.1.id)
+```
+
+## PTSD Checklist (PCL-6) - six item version
+Current Post-Traumatic Stress Symptoms were measured using the PCL-6
+```{r PCL-6 read in data}
+PCL.glad.1 <- readRDS("../../data_raw/16.04.2021/pcl6_glad.rds")
+dim(PCL.glad.1)
+
+PCL.glad.1$startDate <- NULL
+PCL.glad.1$endDate <- NULL
+
+colnames(PCL.glad.1)
+```
+
+Summary PCL-6 file
+```{r PCL-6 summary before recoding}
+PCL.glad.1 %>%
+  select(
+    pcl6.stressful_experience_repeated_images,
+    pcl6.stressful_experience_upset_reminded,
+    pcl6.stressful_situation_avoiding_activities,
+    pcl6.cut_people_feeling_distant,
+    pcl6.feeling_irritable_or_having_angry_outbursts,
+    pcl6.difficulty_concentrating
+  ) %>%
+skim()
+```
+
+Select variables and read them in to single rds
+```{r PCL-6 select variables}
+PCL.glad.1.id <- PCL.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+    ID = externalDataReference, # ID
+    pcl6.stressful_experience_repeated_images,
+    pcl6.stressful_experience_upset_reminded,
+    pcl6.stressful_situation_avoiding_activities,
+    pcl6.cut_people_feeling_distant,
+    pcl6.feeling_irritable_or_having_angry_outbursts,
+    pcl6.difficulty_concentrating)  %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(PCL.glad.1.id)
+
+#Differences
+dim(PCL.glad.1)[1]-dim(PCL.glad.1.id)[1]
+```
+
+PCL-6 selected
+```{r PCL-6 double check}
+skim(PCL.glad.1.id)
+```
+
+## Work and social adjustment (WSAS)
+```{r WSAS read in data}
+WSAS.glad.1 <- readRDS("../../data_raw/16.04.2021/wsas_glad.rds")
+dim(WSAS.glad.1)
+
+WSAS.glad.1$startDate <- NULL
+WSAS.glad.1$endDate <- NULL
+
+colnames(WSAS.glad.1)
+```
+
+Summary WSAS file
+```{r WSAS summary before recoding}
+WSAS.glad.1 %>%
+  select(
+    wsas.areretired_becauseof_choose_job,
+    wsas.home_management_impaired_problem,
+    wsas.impaired_problem_social_leisure,
+    wsas.impaired_problem_private_leisure,
+    wsas.maintain_close_relationships_form
+  ) %>%
+  skim()
+```
+
+Select variables and Read them in to single rds
+```{r WSAS select variables}
+WSAS.glad.1.id <- WSAS.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+    ID = externalDataReference, # ID
+         wsas.areretired_becauseof_choose_job,
+         wsas.home_management_impaired_problem,
+         wsas.impaired_problem_social_leisure,
+         wsas.impaired_problem_private_leisure,
+         wsas.maintain_close_relationships_form)  %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(WSAS.glad.1.id)
+# Inspect colnames
+#colnames(WSAS.glad.1.id)
+#Differences
+dim(WSAS.glad.1)[1]-dim(WSAS.glad.1.id)[1]
+```
+
+WSAS selected
+```{r WSAS double check}
+skim(WSAS.glad.1.id)
+```
+
+## Alcohol Use Disorders Identification Test (AUDIT)
+```{r AUDIT read in data}
+AUDIT.glad.1 <- readRDS("../../data_raw/16.04.2021/audit_glad.rds")
+dim(AUDIT.glad.1)
+
+AUDIT.glad.1$startDate <- NULL
+AUDIT.glad.1$endDate <- NULL
+
+colnames(AUDIT.glad.1)
+```
+
+Summary AUDIT file
+
+"audit.stop_drinking_found_started_numeric", # How often during the last year have you found that you were not able to stop drinking once you had started?
+"audit.expected_failed_drinking_year_numeric", # How often during the last year have you failed to do what was normally expected from you because of drinking?
+"audit.morning_needed_drink_year_numeric", # How often during the last year have you needed a first drink in the morning to get yourself going after a heavy drinking session?
+"audit.guilt_remorse_drinking_feeling_numeric", # How often during the last year have you had a feeling of guilt or remorse after drinking?
+"audit.remember_unable_night_happened_numeric", # How often during the last year have you been unable to remember what happened the night before because you had been drinking?
+"audit.injured_result_drinking_numeric", # Have you or someone else been injured as a result of your drinking?
+"audit.concerned_cut_suggested_relative_numeric", # Has a relative or friend or a doctor or another health worker been concerned about your drinking or suggested you cut down?
+"audit.occasion_units_numeric", # How often do you have six or more units on one occasion?
+"audit.alcohol_drink_numeric", # How often do you have a drink containing alcohol?
+"audit.units_alcohol_drink_drinking_numeric" # How many units of alcohol do you drink on a typical day when you are drinking?
+
+```{r AUDIT summary before recoding}
+AUDIT.glad.1 %>%
+  select(
+    audit.occasion_units,                        
+    audit.stop_drinking_found_started,              
+    audit.expected_failed_drinking_year,            
+    audit.morning_needed_drink_year,                
+    audit.guilt_remorse_drinking_feeling,           
+    audit.remember_unable_night_happened,           
+    audit.injured_result_drinking,                  
+    audit.concerned_cut_suggested_relative,         
+    #audit.drinking_habits_commented_age.txt,        
+    #audit.units_life_drink_alcohol,                 
+    audit.alcohol_drink,                            
+    audit.units_alcohol_drink_drinking,             
+    #audit.substances_highs_legal,                   
+    #audit.how_often_do_you_take_it
+  ) %>%
+  skim()
+```
+
+Select variables and read them in to single rds
+```{r AUDIT select variables}
+AUDIT.glad.1.id <- AUDIT.glad.1 %>% #new dataset with ID
+  drop_na(externalDataReference) %>% # Drop NAs
+  distinct(externalDataReference, .keep_all = TRUE)  %>%
+  select(
+    ID = externalDataReference, # ID
+          audit.occasion_units,                        
+          audit.stop_drinking_found_started,              
+          audit.expected_failed_drinking_year,            
+          audit.morning_needed_drink_year,                
+          audit.guilt_remorse_drinking_feeling,           
+          audit.remember_unable_night_happened,           
+          audit.injured_result_drinking,                  
+          audit.concerned_cut_suggested_relative,         
+          #audit.drinking_habits_commented_age.txt,        
+          #audit.units_life_drink_alcohol,                 
+          audit.alcohol_drink,                            
+          audit.units_alcohol_drink_drinking,             
+          #audit.substances_highs_legal,                   
+          #audit.how_often_do_you_take_it
+    )  %>%
+  add_numeric() %>%
+  mutate_if(is.numeric, ~na_if(., -88)) %>% # Recode missing values to NAs in numeric variables
+  mutate_if(is.numeric, ~na_if(., -99)) %>%
+  mutate_if(is.numeric, ~na_if(., -77)) %>%
+  mutate_if(is.factor, ~na_if(., "Seen but not answered")) %>% # Recode missing values to NAs in factor variables
+  mutate_if(is.factor, ~na_if(., "Don't know")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to say")) %>%
+  mutate_if(is.factor, ~na_if(., "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Seen but not answered")) %>% # Drop empty factor levels
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Don't know")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to answer")) %>%
+  mutate_if(is.factor, ~forcats::fct_drop(., only = "Prefer not to say"))
+
+# Inspect dimensions
+dim(AUDIT.glad.1.id)
+
+#Differences
+dim(AUDIT.glad.1)[1]-dim(AUDIT.glad.1.id)[1]
+```
+
+AUDIT selected
+```{r AUDIT double check}
+AUDIT.glad.1.id %>%
+skim()
+```
+
+# Looking at ID Errors
+```{r Comparing dem and PHQ9}
+x <- dem.glad.1.id[dem.glad.1.id$ID %in% PHQ9.glad.1$externalDataReference,]
+
+length(unique(x$ID))
+```
+None of the IDs in the dem.glad.1.id tibble match the IDs in PHQ9.glad.1
+
+# Merge DEM, PHQ9, GAD7 on startDate and endDate
+We merge those tibbles on startDate and endDate because the IDs are not matching. This must be a data export error (see chunk above).
+For this purpose, we create a list object with the three tibbles
+```{r list to merge DEM PHQ and GAD}
+df_list_dem_phd_gad <- list(
+  dem.glad.1.id,
+  GAD7.glad.1.id,
+  PHQ9.glad.1.id
+)
+```
+
+Joining of the three questionnaires based on startDate and endDate
+```{r join df_list_dem_phd_gad}
+DEM.PHQ.GAD.data_merged <- plyr::join_all(
+  df_list_dem_phd_gad,
+  by = c(
+    "startDate",
+    "endDate",
+    "startDate_numeric",
+    "endDate_numeric")
+    )
+```
+
+Check there are no duplicate columns
+```{r Inspect colnames}
+DEM.PHQ.GAD.data_merged %>%
+  colnames()
+```
+
+Check new DEM.PHQ.GAD.data_merged tibble
+```{r DEM.PHQ.GAD.data_merged check tiblle of variables to merge on date, include=FALSE}
+DEM.PHQ.GAD.data_merged$startDate <- NULL
+DEM.PHQ.GAD.data_merged$startDate_numeric <- NULL
+DEM.PHQ.GAD.data_merged$endDate <- NULL
+DEM.PHQ.GAD.data_merged$endDate_numeric <- NULL
+
+DEM.PHQ.GAD.data_merged 
+```
+
+# Merging of the rest of the tibbles
+Create a list of the data frames for merging: mhd, CTS, PCL, WSAS, AUDIT
+```{r tibble list to merge}
+df_list <- list(
+  DEM.PHQ.GAD.data_merged,
+  mhd.glad.1.id,
+  CTS.glad.1.id,
+  PCL.glad.1.id,
+  WSAS.glad.1.id,
+  AUDIT.glad.1.id
+  )
+```
+
+## Merge the rest of the tibbles
+```{r merge data frame, include=FALSE}
+CM.data_merged <- plyr::join_all(
+  df_list,
+  by = c("ID")
+    )
+
+
+#look at the data
+nrow(CM.data_merged)
+colnames(CM.data_merged)
+```
+
+Check if there are duplicates in your data frame after merging
+```{r duplicates in your data frame after merging}
+CM.data_merged[duplicated(as.list(CM.data_merged))]
+```
+
+Inspection of data after complete merge
+```{r Inspection of data after complete merge, include=FALSE}
+skim(CM.data_merged)
+```
+
+# Quality check of tibble
+Check if the data frame contains -88, -99, -77, "Seen but not answered", "Don't know", "Prefer not to say", "Prefer not to answer"
+```{r Check for non-respones levels}
+CM.data_merged %>%
+  filter_all(
+    any_vars(. %in% c(
+      -88,
+      -99,
+      -77,
+      "Seen but not answered",
+      "Don't know",
+      "Prefer not to say",
+      "Prefer not to answer"
+      )
+      )
+    )
+```
+
+# Exclusion
+## Duplicates
+Identify duplicates in tibble
+The chunk creates a column in the tibble with TRUE if the ID is duplicated and FALSE is the ID is unique
+```{r Identify duplicates in tibble}
+CM.data_merged$ID.dup <- duplicated(CM.data_merged$ID)
+
+summary(as.factor(CM.data_merged$ID.dup))
+```
+All IDs are unique
+
+Number of duplicates
+```{r Number of duplicates}
+data_complete.dup <- CM.data_merged %>%
+  filter(ID.dup == TRUE)
+
+data_complete.dup %>%
+  nrow()
+```
+
+Number of unique participants
+```{r Number of unique participants}
+data_complete.raw <- CM.data_merged %>%
+  filter(ID.dup == FALSE)
+
+data_complete.raw %>%
+  nrow()
+```
+There are no duplicates in the data set.
+
+## Sex
+### Remove participants who do not report their biological Sex
+```{r Remove participants that do not report their biological Sex}
+dim(data_complete.raw)
+
+data_complete.after_sex_exclusion <- data_complete.raw %>%
+  drop_na(sex)
+
+nrow(data_complete.raw)-nrow(data_complete.after_sex_exclusion)
+```
+754 participants did not report biological sex and therefore were excluded
+
+## Age
+### Remove participants who do not report their age
+```{r Remove participants that do not report their age}
+dim(data_complete.after_sex_exclusion)
+
+data_complete.after_sex_age_exclusion <- data_complete.after_sex_exclusion %>%
+  drop_na(age)
+
+nrow(data_complete.after_sex_exclusion)-nrow(data_complete.after_sex_age_exclusion)
+```
+0 participants did not report age and therefore were excluded
+
+## Any item on the CTS is NA
+### Remove participants who do not respond to the CTS
+```{r CTS exclusion}
+dim(data_complete.after_sex_age_exclusion)
+
+data_complete.after_sex_age_CTS_exclusion <- data_complete.after_sex_age_exclusion %>%
+  drop_na(
+      "CEN",
+      "CEA",
+      "CPN",
+      "CPA",
+      "CSA"
+    )
+
+nrow(data_complete.after_sex_age_exclusion)-nrow(data_complete.after_sex_age_CTS_exclusion)
+```
+5647 participants did not compelte the CTS and therefore were excluded
+
+# Copy data frame
+```{r make a copy of data frame after correction}
+CM_ED_Data <- data_complete.after_sex_age_CTS_exclusion
+
+dim(CM_ED_Data)
+```
+
+# Export
+Export the tibble as rds file
+```{r Export tibble to rds file}
+write_rds(
+  x = CM_ED_Data,
+  file = paste0("../../data_clean/CM_ED_Data",date,".rds")
+)
+```
