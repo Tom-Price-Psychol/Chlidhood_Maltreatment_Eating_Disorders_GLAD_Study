@@ -1,0 +1,1188 @@
+---
+title: "Maltreatment_Project_TP"
+author: "Tom Price"
+date: "09/05/2021"
+output: html_document 
+---
+
+# Set markdown options
+```{r setup }
+knitr::opts_chunk$set(echo = TRUE,
+                      comment=NA,
+                      prompt=FALSE,
+                      cache=FALSE)
+```
+
+# Clear workspace
+```{r clear workspace}
+remove(list = ls())
+```
+
+Date
+```{r}
+date=Sys.Date()
+```
+
+## Install Packages
+```{r Install Packages }
+#install.packages("summarytools")
+#install.packages("broom")
+#install.packages("polycor")
+#install.packages("corrplot")
+#install.packages("nnet")
+#install.packages("scales")
+#install.packages(patchwork)
+#install.packages("tidyverse")
+```
+
+## Load Packages
+```{r Load Packages }
+library(polycor)
+library(corrplot)
+library(summarytools)
+library(broom)
+library(patchwork)
+library(nnet)
+library(scales)
+library(tidyverse)
+```
+
+# ggplot theme
+Set up ggplot theme for the plots
+```{r ggplot theme}
+theme_personal <-  theme(
+    text = element_text(color = "black"),
+    axis.title = element_text(color = "black"),
+    axis.text = element_text(color = "black"),
+    axis.title.y = element_blank(), 
+    legend.background = element_blank(),
+    legend.box.background = element_blank(),
+    panel.background = element_blank(), 
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_line(
+      colour = "gray",
+      linetype = "dashed",
+      size = 0.2
+      ),
+    axis.ticks = element_blank()
+    )
+```
+
+# Read in clean data
+```{r Load clean data}
+cm.clean <- read_rds("../../data_clean/CMED_data2021-05-12.rds")
+dim(cm.clean)
+```
+
+# Data structure
+```{r Skim structure of the data}
+colnames(cm.clean)
+```
+
+# ED_hierarchical summary
+Check number of eating disorder cases
+```{r Total n of EDs}
+cm.clean %>%
+  freq(ED_hierarchical)
+```
+
+# Colour-blind palette
+```{r Colour-blind friendly palette }
+cbp1 <- c("#999999", "#E69F00", "#56B4E9", "#009E73",
+          "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+pallette_tom <- c(
+  "lightskyblue3",
+#  "lightgoldenrod1", 
+  "lightpink4",
+  "firebrick3", 
+  "orange1"
+  )
+
+pallette_tom
+```
+
+# Main analysis:
+
+## Multinomial logistic regression
+
+We conducted multinomial logistic regressions to estimate the relationships between the different childhood maltreatment types and EDs while adjusting for important covariates. Multinomial logistic regression was used to predict the probability of category membership on the dependent variable (i.e., self-reported ED diagnosis) based on independent childhood maltreatment variables. Multinomial logistic regression allows simultaneous estimation of the probability of different outcomes.
+
+## Check for multicollinearity between the different forms of maltreatment. 
+
+## Correlation matrix between dependent and independent variables
+
+Correlation between covariates was checked using a correlogram. Hashed out values for each of 3 matricies: 
+(1) associations between demographic variables - age, sex at birth, gender, sexuality, relationship status, education, 
+(2) reporting bias variables - phq-9, gad-7 and AUDIT score 
+(3) trauma variables - Sexual, emotional and physical abuse
+```{r Correlation matrix of depen, indepen & covariates}
+# Calculate correlation matrix on specific columns (variables) from your data frame
+
+corr.mat <- cm.clean %>%
+  select(
+    "Age" = "age", # Choose variables here
+    "Sex" = "sex",
+    "Ethnicity" = "ethnicity_binary",
+    "Sexuality" = "sexuality_binary",
+    "Relationship status" = "relationship_binary",
+    "Educational attainment" = "education_binary",
+    "GAD-7" = "gad7.sum_score",
+    "PHQ-9" = "phq9.sum_score",
+    #"AUDIT" = "audit.sum_score",
+    "Eating disorder" = "ED_hierarchical",
+    "Sexual abuse" = "Childhood_sexual_abuse_binary",
+    "Emotional abuse" = "Childhood_emotional_abuse_binary",
+    "Physical abuse" = "Childhood_physical_abuse_binary",
+    "Physical neglect" = "Childhood_emotional_neglect_binary",
+    "Emotional neglect" = "Childhood_physical_neglect_binary",
+    #"Any maltreatment" = "Any_childhood_maltreatment_binary"
+  ) %>%
+  as_data_frame() %>%
+  polycor::hetcor(use = "pairwise.complete.obs")
+
+# Print the correlation matrix
+print(corr.mat, digits = max(3, getOption("digits") - 3)) 
+
+# Save the correlations from the correlation matrix in an object
+corr.matrix <- as.matrix(corr.mat)
+
+# Save the p values from the correlation matrix in an object
+p.matrix <- as.matrix(corr.mat$tests)
+```
+
+#Create the correlation matrix plot - correlogram
+checked here - cleaned at the end of script for inclusion in appendix  
+```{r Correlation matrix plot - check for multicollinearity, fig.height=10, fig.width=8}
+corrplot_all <- 
+corrplot(corr.matrix, 
+         method = "color", # objects to represent the correlations on plot
+         type = "lower", # only use the lower triangle of the matrix
+         diag = FALSE, # do not show the correlations on the diagonal
+         addgrid.col = NA,
+         addCoef.col = "black", # colour for the correlation coefficients in the plot
+         tl.cex = 1,
+         tl.col = "black",
+         col=colorRampPalette(c("blue","white","red"))(300), # colours for correlations
+         # Combine with significance
+         p.mat = p.matrix, # Matrix with p values
+         sig.level = 0.05, # Choose significant level
+         insig = "blank" # Nonsignificant correlations have no colour
+         )
+
+corrplot_all
+```
+
+```{r Save correlation plot as png}
+png(
+  filename = paste0("../../plots/CMED_corrplot", date, ".png"),
+  width = 23,
+  height = 24,
+  units = "cm", 
+  res = 300,
+  )
+  
+corrplot(corr.matrix, 
+         method = "color", # objects to represent the correlations on plot
+         type = "lower", # only use the lower triangle of the matrix
+         diag = FALSE, # do not show the correlations on the diagonal
+         addgrid.col = NA,
+         addCoef.col = "black", # colour for the correlation coefficients in the plot
+         tl.cex = 1,
+         tl.col = "black",
+         col=colorRampPalette(c("mediumblue","white","red2"))(300), # colours for correlations
+         # Combine with significance
+         p.mat = p.matrix, # Matrix with p values
+         sig.level = 0.05, # Choose significant level
+         insig = "blank" # Nonsignificant correlations have no colour
+         )
+
+dev.off()
+```
+
+
+#Correlation between anxiety and depression
+```{r Correlation between anxiety and depression }
+cor.test(
+  x = cm.clean$phq9.sum_score, # First variable
+  y = cm.clean$gad7.sum_score, # Second variable
+  exact = TRUE # if exact p value should be calculated
+  )
+```
+
+```{r}
+levels(cm.clean$ED_hierarchical)
+```
+
+# Multiple maltreatment - Multiple linear regression
+# Models for exposure to different types of maltreatment
+Dependent variable - eating disorders coded: (0 = no ED comparison group [reference]; 1 = anorexia; 2 = bulimia; 3 = binge-eating disorder)
+
+Independent variables = Any_childhood_maltreatment_count_numeric variable for exposure to multiple forms of childhood maltreatment. 
+
+## Unadjusted model- multiple types of maltreatment exposure on eating disorders
+```{r unadjusted model - multiple trauma exposure tidy}
+unadj_multiple_cm <- lm(
+  formula = Any_childhood_maltreatment_count_numeric ~ ED_hierarchical, 
+  data = cm.clean)
+  
+  
+unadj_multiple_cm.tidy <-
+    tidy(unadj_multiple_cm,
+       conf.int = TRUE
+       ) 
+
+unadj_multiple_cm.tidy
+```
+
+Filter significant results -
+Unadjusted model- multiple types of maltreatment exposure on eating disorders
+```{r Unadjusted model- multiple types of maltreatment on eating disorders significant}
+unadj_multiple_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy unadj_multiple_cm.tidy table multiple maltreatment}
+unadj_multiple_cm.tidy_pub <- unadj_multiple_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "ED_hierarchicalAnorexia nervosa" = "Anorexia nervosa",
+                         "ED_hierarchicalBulimia nervosa" = "Bulimia nervosa",
+                         "ED_hierarchicalBinge-eating disorder" = "Binge-eating disorder",
+           ),
+         "Estimate unadjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Explanatory variable",
+    "Estimate unadjst." = "Estimate unadjst.",
+    "Lower 95% CI unadjst." = "conf.low",
+    "Upper 95% CI unadjst." = "conf.high",
+    "Statistic unadjst." = "statistic",
+    "p value unadjst." = "p.value"
+  )
+
+unadj_multiple_cm.tidy_pub
+```
+
+## Adjusted model- multiple maltreatment exposure on eating disorders
+Adjusted models include self-report lifetime eating disorders (dependent variable), self-report childhood maltreatment (independent variable) and sociodemographic covariates, including age, sex at birth, ethnicity, sexuality, relationship status and educational attainment of Advanced level qualifications (known as A levels) or higher (i.e., college or university degree).
+```{r adjusted model - multiple trauma exposure}
+adj_multiple_cm <- lm(
+  formula = Any_childhood_maltreatment_count_numeric ~ ED_hierarchical + 
+                        sex +
+                        age +
+                        ethnicity_binary +
+                        sexuality_binary +
+                        relationship_binary +
+                        education_binary,
+  data = cm.clean)
+  
+  
+adj_multiple_cm.tidy <-
+    tidy(adj_multiple_cm,
+       conf.int = TRUE
+       )
+
+adj_multiple_cm.tidy
+```
+
+Filter significant results -
+Adjusted model- multiple types of maltreatment exposure on eating disorders
+```{r Adjusted model- multiple types significant}
+adj_multiple_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy adj_multiple_cm.tidy table multiple maltreatment}
+adj_multiple_cm.tidy_pub <- adj_multiple_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "ED_hierarchicalAnorexia nervosa" = "Anorexia nervosa",
+                         "ED_hierarchicalBulimia nervosa" = "Bulimia nervosa",
+                         "ED_hierarchicalBinge-eating disorder" = "Binge-eating disorder",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+
+           ),
+         "Estimate adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Explanatory variable",
+    "Estimate adjst." = "Estimate adjst.",
+    "Lower 95% CI adjst." = "conf.low",
+    "Upper 95% CI adjst." = "conf.high",
+    "Statistic adjst." = "statistic",
+    "p value adjst." = "p.value"
+  )
+
+adj_multiple_cm.tidy_pub
+```
+
+In the adjusted model. 
+
+On average individuals who self-reported lifetime experience of binge eating disorder reported 0.46 more childhood maltreatment types than the ANX/DEP comparison group. 
+
+On average individuals who self-reported lifetime experience of bulimia nervosa reported 0.37 more childhood maltreatment types than the ANX/DEP comparison group.
+
+On average individuals who self-reported lifetime experience of anorexia nervosa reported 0.24 more childhood maltreatment types than the ANX/DEP comparison group.
+
+## Fully adjusted model- multiple maltreatment exposure on eating disorders
+Fully adjusted models include self-report lifetime eating disorders (dependent variable), self-report childhood maltreatment (independent variable), all sociodemographic covariates included in the adjusted model and factors possibly linked to reporting biases including current depression symptoms, anxiety symptoms and alcohol dependence.
+```{r Fully adjusted model - multiple trauma exposure}
+fulladj_multiple_cm <- lm(
+  formula = Any_childhood_maltreatment_count_numeric ~ 
+    ED_hierarchical + 
+    sex +
+    age +
+    ethnicity_binary +
+    sexuality_binary +
+    relationship_binary +
+    education_binary +
+    gad7.sum_score +
+    phq9.sum_score,
+    #audit.sum_score,
+  data = cm.clean
+  )
+  
+  
+fulladj_multiple_cm.tidy <-
+    tidy(fulladj_multiple_cm,
+       conf.int = TRUE
+       )
+
+fulladj_multiple_cm.tidy
+```
+
+Filter significant results -
+Adjusted model- multiple types of maltreatment exposure on eating disorders
+```{r Adjusted model- multiple types of exposure significant}
+fulladj_multiple_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+In the fully adjusted model. 
+
+On average individuals who self-reported lifetime experience of binge eating disorder reported 0.34 more childhood maltreatment types than the ANX/DEP comparison group. 
+
+On average individuals who self-reported lifetime experience of bulimia nervosa reported 0.29 more childhood maltreatment types than the ANX/DEP comparison group.
+
+On average individuals who self-reported lifetime experience of anorexia nervosa reported 0.15 more childhood maltreatment types than the ANX/DEP comparison group.
+
+
+```{r tidy fulladj_multi_cm.tidy table multiple maltreatment tidy}
+fulladj_multiple_cm.tidy_pub <- fulladj_multiple_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "ED_hierarchicalAnorexia nervosa" = "Anorexia nervosa",
+                         "ED_hierarchicalBulimia nervosa" = "Bulimia nervosa",
+                         "ED_hierarchicalBinge-eating disorder" = "Binge-eating disorder",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+                         "gad7.sum_score" = "GAD-7 total score",
+                         "phq9.sum_score" = "PHQ-9 total score", 
+                         #"audit.sum_score"= "AUDIT total score",
+                         ),
+          "Estimate f.adjst." = round(estimate, digits = 2),
+          "conf.low" = round(conf.low, digits = 2),
+          "conf.high" = round(conf.high, digits = 2),
+          "statistic" = round(statistic, digits = 2),
+          "p.value" = case_when(
+            p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+            p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+            p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+            ),
+          "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Explanatory variable",
+    "Estimate f.adjst." = "Estimate f.adjst.",
+    "Lower 95% CI f.adjst." = "conf.low",
+    "Upper 95% CI f.adjst." = "conf.high",
+    "Statistic f.adjst." = "statistic",
+    "p value f.adjst." = "p.value"
+  )
+
+fulladj_multiple_cm.tidy_pub
+```
+
+```{r}
+multiple_maltreatment_file <- fulladj_multiple_cm.tidy_pub %>%
+  full_join(y = adj_multiple_cm.tidy_pub,
+            by = "Explanatory variable", 
+  ) %>% full_join(y = unadj_multiple_cm.tidy_pub,
+                  by = "Explanatory variable")
+
+multiple_maltreatment_file
+```
+
+Write table to spreadsheet - multiple maltreatment model
+```{r Write multiple maltreatment model table to spreadsheet}
+worksheet_multiple_maltreatment_file <-
+  list(
+    multiple_maltreatment_file
+  )
+
+openxlsx::write.xlsx(
+  x = worksheet_multiple_maltreatment_file,
+  file = paste0("../../tables/multiple_maltreatment", date, ".xlsx")
+  )
+```
+
+# Sensitivity Analysis - Anorexia as reference group
+
+# Multiple maltreatment - Multiple linear regression
+# Models for exposure to different types of maltreatment
+Dependent variable - eating disorders coded: (0 = anorexia [reference]; 1 = bulimia; 2 = binge eating disorder; 3 = no ED comparison group)
+
+Independent variables = Any_childhood_maltreatment_count_numeric variable for exposure to multiple forms of childhood maltreatment. 
+
+```{r}
+levels(cm.clean$ED_hierarchical_AN_reference)
+```
+
+## Unadjusted model- multiple types of maltreatment exposure on eating disorders (anorexia reference)
+```{r AN unadjusted model - multiple trauma exposure}
+ANunadj_multiple_cm <- lm(
+  formula = Any_childhood_maltreatment_count_numeric ~ ED_hierarchical_AN_reference, 
+  data = cm.clean)
+  
+  
+ANunadj_multiple_cm.tidy <-
+    tidy(ANunadj_multiple_cm,
+       conf.int = TRUE
+       ) 
+
+ANunadj_multiple_cm.tidy
+```
+
+Filter significant results -
+Unadjusted model- multiple types of maltreatment exposure on eating disorders
+```{r Unadjusted model- multiple types different exposure significant}
+ANunadj_multiple_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy ANunadj_multiple_cm.tidy table multiple maltreatment}
+ANunadj_multiple_cm.tidy_pub <- ANunadj_multiple_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "ED_hierarchical_AN_referenceBulimia nervosa" = "Bulimia nervosa",
+                         "ED_hierarchical_AN_referenceBinge-eating disorder" = "Binge-eating disorder",
+                         "ED_hierarchical_AN_referenceAnxiety/depression" = "Depression and/or anxiety",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+                         "gad7.sum_score" = "GAD-7 total score",
+                         "phq9.sum_score" = "PHQ-9 total score", 
+                         "audit.sum_score"= "AUDIT total score",
+           ),
+         "Estimate adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Explanatory variable",
+    "Estimate adjst." = "Estimate adjst.",
+    "Lower 95% CI adjst." = "conf.low",
+    "Upper 95% CI adjst." = "conf.high",
+    "Statistic adjst." = "statistic",
+    "p value adjst." = "p.value"
+  )
+
+ANunadj_multiple_cm.tidy_pub
+```
+
+## Adjusted model- multiple maltreatment exposure on eating disorders (anorexia reference)
+Adjusted models include self-report lifetime eating disorders (dependent variable), self-report childhood maltreatment (independent variable) and sociodemographic covariates, including age, sex at birth, ethnicity, sexuality, relationship status and educational attainment of Advanced level qualifications (known as A levels) or higher (i.e., college or university degree).
+```{r adjusted model - multiple trauma exposure - AN reference}
+ANadj_multiple_cm <- lm(
+  formula = Any_childhood_maltreatment_count_numeric ~
+    ED_hierarchical_AN_reference +
+    sex +
+    age +
+    ethnicity_binary +
+    sexuality_binary +
+    relationship_binary +
+    education_binary,
+  data = cm.clean)
+
+
+ANadj_multiple_cm.tidy <-
+  tidy(ANadj_multiple_cm,
+       conf.int = TRUE,
+       exponentiate = TRUE)
+
+ANadj_multiple_cm.tidy
+```
+
+Filter significant results -
+  Adjusted model- multiple types of maltreatment exposure on eating disorders - AN reference
+```{r Adjusted model- multiple types exposure significant - AN reference}
+ANadj_multiple_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy ANadj_multiple_cm.tidy table multiple maltreatment}
+ANadj_multiple_cm.tidy_pub <- ANadj_multiple_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "ED_hierarchical_AN_referenceBulimia nervosa" = "Bulimia nervosa",
+                         "ED_hierarchical_AN_referenceBinge-eating disorder" = "Binge-eating disorder",
+                         "ED_hierarchical_AN_referenceAnxiety/depression" = "Depression and/or anxiety",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+                         "gad7.sum_score" = "GAD-7 total score",
+                         "phq9.sum_score" = "PHQ-9 total score", 
+                         "audit.sum_score"= "AUDIT total score",
+           ),
+         "Estimate adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Explanatory variable",
+    "Estimate adjst." = "Estimate adjst.",
+    "Lower 95% CI adjst." = "conf.low",
+    "Upper 95% CI adjst." = "conf.high",
+    "Statistic adjst." = "statistic",
+    "p value adjst." = "p.value"
+  )
+
+ANadj_multiple_cm.tidy_pub
+```
+
+## Fully adjusted model- multiple maltreatment exposure on eating disorders - anorexia reference
+Fully adjusted models include self-report lifetime eating disorders (dependent variable), self-report childhood maltreatment (independent variable), all sociodemographic covariates included in the adjusted model and factors possibly linked to reporting biases including current depression symptoms, anxiety symptoms and alcohol dependence.
+```{r Fully adjusted model - multiple trauma exposure - AN reference}
+ANfulladj_multi_cm <- lm(
+  formula = Any_childhood_maltreatment_count_numeric ~ ED_hierarchical_AN_reference + 
+    sex +
+    age +
+    ethnicity_binary +
+    sexuality_binary +
+    relationship_binary +
+    education_binary +
+    gad7.sum_score +
+    phq9.sum_score,
+   # audit.sum_score,
+  data = cm.clean)
+
+
+ANfulladj_multi_cm.tidy <-
+  tidy(ANfulladj_multi_cm,
+       conf.int = TRUE,
+       exponentiate = TRUE)
+
+ANfulladj_multi_cm.tidy
+```
+
+Filter significant results -
+  Adjusted model- multiple types of maltreatment exposure on eating disorders - AN reference
+```{r Adjusted model- multiple types different exposure significant - AN reference}
+ANfulladj_multi_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy fulladj_multi_cm.tidy table multiple maltreatment - AN reference}
+ANfulladj_multi_cm.tidy_pub <- ANfulladj_multi_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "ED_hierarchical_AN_referenceBulimia nervosa" = "Bulimia nervosa",
+                         "ED_hierarchical_AN_referenceBinge-eating disorder" = "Binge-eating disorder",
+                         "ED_hierarchical_AN_referenceAnxiety/depression" = "Depression and/or anxiety",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+                         "gad7.sum_score" = "GAD-7 total score",
+                         "phq9.sum_score" = "PHQ-9 total score", 
+                         #"audit.sum_score"= "AUDIT total score",
+           ),
+         "Estimate f.adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Explanatory variable",
+    "Estimate f.adjst." = "Estimate f.adjst.",
+    "Lower 95% CI f.adjst." = "conf.low",
+    "Upper 95% CI f.adjst." = "conf.high",
+    "Statistic f.adjst." = "statistic",
+    "p value f.adjst." = "p.value"
+  )
+
+ANfulladj_multi_cm.tidy_pub
+```
+
+In the fully adjusted model. 
+
+On average individuals who self-reported lifetime experience of binge eating disorder reported 0.19 more childhood maltreatment types than the ANX/DEP comparison group. 
+
+```{r ANref_multiple_maltreatment_file join tibbles}
+ANref_multiple_maltreatment_file <- ANfulladj_multi_cm.tidy_pub %>%
+  full_join(y = ANadj_multiple_cm.tidy_pub,
+            by = "Explanatory variable", 
+  ) %>% full_join(y = ANunadj_multiple_cm.tidy_pub,
+                  by = "Explanatory variable")
+
+ANref_multiple_maltreatment_file
+```
+
+Write table to spreadsheet - multiple maltreatment model
+```{r Write multiple maltreatment model table to spreadsheet - AN reference}
+worksheet_ANref_multiple_maltreatment_file <-
+  list(
+    ANref_multiple_maltreatment_file
+  )
+
+openxlsx::write.xlsx(
+  x = worksheet_multiple_maltreatment_file,
+  file = paste0("../../tables/ANref_multiple_maltreatment", date, ".xlsx")
+  )
+```
+
+
+#Different types of maltreatment - Multinomial logistic regression
+# Models for exposure to different types of maltreatment
+Dependent variable - eating disorders coded: (0 = no ED comparison group [reference]; 1 = anorexia; 2 = bulimia; 3 = binge eating disorder)
+
+Independent variables = childhood maltreatment coded: sexual abuse (0 = no; 1 = yes); emotional abuse (0 = no; 1 = yes); physical abuse (0 = no; 1 = yes); emotional neglect (0 = no; 1 = yes); physical neglect (0 = no; 1 = yes)
+
+## Unadjusted model- different types of maltreatment exposure on eating disorders
+```{r unadjusted model - multiple trauma exposure}
+unadj_different_cm <- multinom(
+  ED_hierarchical ~
+                        Childhood_sexual_abuse_binary +
+                        Childhood_emotional_abuse_binary +
+                        Childhood_physical_abuse_binary +
+                        Childhood_emotional_neglect_binary +
+                        Childhood_physical_neglect_binary,
+         data = cm.clean)
+
+unadj_different_cm.tidy <-
+  tidy(unadj_different_cm,
+       conf.int = TRUE,
+       exponentiate = TRUE)
+
+unadj_different_cm.tidy
+```
+
+Filter significant results - unadjusted model different maltreatment exposure
+```{r unadjusted different exposure significant}
+unadj_different_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy unadj_different_cm.tidy table multiple maltreatment}
+unadj_different_cm.tidy_pub <- unadj_different_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "Childhood_sexual_abuse_binaryChildhood sexual abuse" = "Sexual abuse",
+                         "Childhood_emotional_abuse_binaryChildhood emotional abuse" = "Emotional abuse",
+                         "Childhood_physical_abuse_binaryChildhood physical abuse" = "Physical abuse",
+                         "Childhood_emotional_neglect_binaryChildhood emotional neglect" = "Emotional neglect",
+                         "Childhood_physical_neglect_binaryChildhood physical neglect" = "Physical neglect",
+           ),
+         "Eating disorder" = y.level,
+         "Relative risk ratio f.adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Eating disorder",
+    "Explanatory variable",
+    "Relative risk ratio f.adjst." = "Relative risk ratio f.adjst.",
+    "Lower 95% CI f.adjst." = "conf.low",
+    "Upper 95% CI f.adjst." = "conf.high",
+    "Statistic f.adjst." = "statistic",
+    "p value f.adjst." = "p.value"
+  )
+
+unadj_different_cm.tidy_pub
+```
+## Adjusted model- multiple maltreatment exposure on eating disorders
+Adjusted models include self-report lifetime eating disorders (dependent variable), self-report childhood maltreatment (independent variable) and sociodemographic covariates, including age, sex at birth, ethnicity, sexuality, relationship status and educational attainment of Advanced level qualifications (known as A levels) or higher (i.e., college or university degree).
+```{r adjusted model - different trauma exposure}
+adj_different_cm <- multinom(
+  ED_hierarchical ~
+                        sex +
+                        age +
+                        ethnicity_binary +
+                        sexuality_binary +
+                        relationship_binary +
+                        education_binary +                    
+                        Childhood_sexual_abuse_binary +
+                        Childhood_emotional_abuse_binary +
+                        Childhood_physical_abuse_binary +
+                        Childhood_emotional_neglect_binary +
+                        Childhood_physical_neglect_binary,
+         data = cm.clean)
+
+adj_different_cm.tidy <-
+  tidy(adj_different_cm,
+       conf.int = TRUE,
+       exponentiate = TRUE)
+
+adj_different_cm.tidy
+```
+
+Filter significant results - adjusted model different maltreatment exposure
+```{r Adjusted different exposure significant}
+adj_different_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy adj_different_cm.tidy table multiple maltreatment}
+adj_different_cm.tidy_pub <- adj_different_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "Childhood_sexual_abuse_binaryChildhood sexual abuse" = "Sexual abuse",
+                         "Childhood_emotional_abuse_binaryChildhood emotional abuse" = "Emotional abuse",
+                         "Childhood_physical_abuse_binaryChildhood physical abuse" = "Physical abuse",
+                         "Childhood_emotional_neglect_binaryChildhood emotional neglect" = "Emotional neglect",
+                         "Childhood_physical_neglect_binaryChildhood physical neglect" = "Physical neglect",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+
+           ),
+         "Eating disorder" = y.level,
+         "Relative risk ratio adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Eating disorder",
+    "Explanatory variable",
+    "Relative risk ratio adjst." = "Relative risk ratio adjst.",
+    "Lower 95% CI adjst." = "conf.low",
+    "Upper 95% CI adjst." = "conf.high",
+    "Statistic adjst." = "statistic",
+    "p value adjst." = "p.value"
+  )
+
+adj_different_cm.tidy_pub
+```
+
+
+## Fully adjusted model- multiple maltreatment exposure on eating disorders
+Fully adjusted models include self-report lifetime eating disorders (dependent variable), self-report childhood maltreatment (independent variable), all sociodemographic covariates included in the adjusted model and factors possibly linked to reporting biases including current depression symptoms, anxiety symptoms and alcohol dependence.
+```{r Fully adjusted model - different trauma exposure}
+fulladj_different_cm <- multinom(
+  ED_hierarchical ~
+                        sex +
+                        age +
+                        ethnicity_binary +
+                        sexuality_binary +
+                        relationship_binary +
+                        education_binary +
+                        gad7.sum_score +
+                        phq9.sum_score +
+                        #audit.sum_score +
+                        Childhood_sexual_abuse_binary +
+                        Childhood_emotional_abuse_binary +
+                        Childhood_physical_abuse_binary +
+                        Childhood_emotional_neglect_binary +
+                        Childhood_physical_neglect_binary,
+         data = cm.clean)
+
+fulladj_different_cm.tidy <-
+  tidy(fulladj_different_cm,
+       conf.int = TRUE,
+       exponentiate = TRUE)
+
+fulladj_different_cm.tidy
+```
+
+Filter significant results - adjusted model different maltreatment exposure
+```{r Fully adjusted different exposure significant}
+fulladj_different_cm.tidy %>%
+  filter(p.value < 0.002)
+```
+
+```{r tidy fulladj_different_cm.tidy table multiple maltreatment}
+fulladj_different_cm.tidy_pub <- fulladj_different_cm.tidy %>%
+  mutate("Explanatory variable" =
+           recode_factor(term,
+                         "(Intercept)" = "Intercept",
+                         "Childhood_sexual_abuse_binaryChildhood sexual abuse" = "Sexual abuse",
+                         "Childhood_emotional_abuse_binaryChildhood emotional abuse" = "Emotional abuse",
+                         "Childhood_physical_abuse_binaryChildhood physical abuse" = "Physical abuse",
+                         "Childhood_emotional_neglect_binaryChildhood emotional neglect" = "Emotional neglect",
+                         "Childhood_physical_neglect_binaryChildhood physical neglect" = "Physical neglect",
+                         "sexFemale" = "Female",
+                         "age" = "Age",
+                         "ethnicity_binaryMinoritised ethnicity" = "Minoritised ethnicity",
+                         "sexuality_binaryMinoritised sexuality" = "Minoritisied sexuality",
+                         "relationship_binaryNot married or in a relationship" = "Not married or in a relationship",
+                         "education_binaryFurther education" = "Further education",
+                         "gad7.sum_score" = "GAD-7 total score",
+                         "phq9.sum_score" = "PHQ-9 total score", 
+                         #"audit.sum_score"= "AUDIT total score",
+           ),
+         "Eating disorder" = y.level,
+         "Relative risk ratio f.adjst." = round(estimate, digits = 2),
+         "conf.low" = round(conf.low, digits = 2),
+         "conf.high" = round(conf.high, digits = 2),
+         "statistic" = round(statistic, digits = 2),
+         "p.value" = case_when(
+           p.value < 0.001 ~ formatC(p.value, format = "e", digits = 2),
+           p.value >= 0.001 & p.value < 0.01 ~ formatC(p.value, format = "f",  digits = 3),
+           p.value >= 0.01 ~ formatC(p.value, format = "f", digits = 2)
+         ),
+         "std.error" = round(std.error, digits = 2),
+  ) %>%
+  select(
+    "Eating disorder",
+    "Explanatory variable",
+    "Relative risk ratio f.adjst." = "Relative risk ratio f.adjst.",
+    "Lower 95% CI f.adjst." = "conf.low",
+    "Upper 95% CI f.adjst." = "conf.high",
+    "Statistic f.adjst." = "statistic",
+    "p value f.adjst." = "p.value"
+  )
+
+fulladj_different_cm.tidy_pub
+```
+
+```{r different maltreatment model - relative risk}
+different_maltreatment_file <- fulladj_different_cm.tidy_pub %>%
+  full_join(y = adj_different_cm.tidy_pub,
+            by = "Explanatory variable", 
+  ) %>% full_join(y = unadj_different_cm.tidy_pub,
+                  by = "Explanatory variable")
+
+different_maltreatment_file
+```
+
+Write table to spreadsheet - different maltreatment model - relative risk
+```{r Write different maltreatment model - relative risk table to spreadsheet}
+worksheet_different_maltreatment_file <-
+  list(
+    different_maltreatment_file
+  )
+
+openxlsx::write.xlsx(
+  x = worksheet_different_maltreatment_file,
+  file = paste0("../../tables/different_maltreatment", date, ".xlsx")
+  )
+```
+
+# Plots
+
+## Unadjusted RR plot for sociodemographic and bias variables (number of CM)
+```{r Risk ratios for unadjusted different exposure significant, fig.height=4, fig.width=6}
+unadj_different_cm.tidy.filtered <- 
+  unadj_different_cm.tidy %>%
+  filter(term != "(Intercept)") %>%
+  filter(!str_detect(y.level, "ED_hierarchical")) %>%
+  mutate(
+    low = conf.low,
+    high = conf.high,
+    term.short = str_remove(term, pattern = "Any_maltreatment_count_cat"),
+    term.short = fct_recode(term, "Sexual abuse" = "Childhood_sexual_abuse_binaryChildhood sexual abuse", 
+                            "Emotional abuse" = "Childhood_emotional_abuse_binaryChildhood emotional abuse", 
+                            "Physical abuse" = "Childhood_physical_abuse_binaryChildhood physical abuse", 
+                            "Emotional neglect" = "Childhood_emotional_neglect_binaryChildhood emotional neglect", 
+                            "Physical neglect" = "Childhood_physical_neglect_binaryChildhood physical neglect"))
+
+unadj_different_cm.tidy.filtered.plot <-
+  ggplot(unadj_different_cm.tidy.filtered,
+         aes(x = term.short,
+             y = estimate,
+             ymin = low,
+             ymax = high,
+             height = 0,
+             colour = y.level)) +
+#  ggtitle("Multinomial regression of lifetime eating disorder on self-report exposure to different types of maltreatment") +
+  labs(subtitle = "Unadjusted") +
+  xlab("Self-reported childhood maltreatment") +
+  ylab("Relative risk ratio (RRR)") +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype='dotted', col = 'black') +
+  geom_errorbar() +
+  theme_classic() +
+  theme(legend.position = "none",
+#        axis.text.x = element_blank()
+        axis.text.x = element_text(angle = 90, hjust = 1)
+        ) +
+  facet_grid(~y.level) +
+  expand_limits(x = 0, y = c(0.4, 2)) +
+  scale_y_continuous(
+    trans = log_trans(),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2)
+  )
+
+
+unadj_different_cm.tidy.filtered.plot
+```
+
+
+```{r unadj_different_cm.tidy.filtered.plot ggsave}
+ggsave(
+  paste0("RRRplot_maltreatment_unadj", date, ".png"),
+  plot = unadj_different_cm.tidy.filtered.plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 4,
+  height = 6,
+  units = "in",
+  dpi = 300,
+  limitsize = TRUE
+)
+```
+
+
+
+
+
+## Adjusted RR for sociodemographic variables
+```{r Risk ratios for adjusted different exposure significant, fig.height=4, fig.width=6}
+adj_different_cm.tidy.filtered <- 
+  adj_different_cm.tidy %>%
+  filter(term != "(Intercept)") %>%
+  filter(term != "age") %>%
+  filter(term != "sexFemale") %>%
+  filter(term != "ethnicity_binaryMinoritised ethnicity") %>%
+  filter(term != "sexuality_binaryMinoritised sexuality") %>%
+  filter(term != "relationship_binaryNot married or in a relationship") %>%
+  filter(term != "education_binaryFurther education") %>%
+  filter(!str_detect(y.level, "ED_hierarchical")) %>%
+  mutate(
+    low = conf.low,
+    high = conf.high,
+    term.short = str_remove(term, pattern = "Any_CM_count_cat"),
+    term.short = fct_recode(term, "Sexual abuse" = "Childhood_sexual_abuse_binaryChildhood sexual abuse", 
+                            "Emotional abuse" = "Childhood_emotional_abuse_binaryChildhood emotional abuse", 
+                            "Physical abuse" = "Childhood_physical_abuse_binaryChildhood physical abuse", 
+                            "Emotional neglect" = "Childhood_emotional_neglect_binaryChildhood emotional neglect", 
+                            "Physical neglect" = "Childhood_physical_neglect_binaryChildhood physical neglect")) %>%
+  mutate(name = fct_reorder(term.short, estimate))
+
+adj_different_cm.tidy.plot <-
+  ggplot(adj_different_cm.tidy.filtered,
+       aes(x = term.short,
+           y = estimate,
+           ymin = low,
+           ymax = high,
+           height = 0,
+           colour = y.level)) +
+#  ggtitle("Multinomial regression of lifetime eating disorder on self-report exposure to different types of maltreatment") +
+#  labs(subtitle = "Adjusted for sociodemographic covariates including age, sex at birth, ethnicity, sexuality, relationship status and educational attainment") +
+  labs(subtitle = "Adjusted model (sociodemographic covariates)") +
+#  xlab("Self-reported childhood maltreatment") +
+  xlab("") +
+  ylab("Relative risk ratio (RRR)") +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype='dotted', col = 'black') +
+  geom_errorbar() +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.text.x = element_blank()
+#        axis.text.x = element_text(angle = 90, hjust = 1)
+        ) +
+  facet_grid(~y.level) +
+  expand_limits(x = 0, y = c(0.4, 2)) +
+  scale_y_continuous(
+    trans = log_trans(),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2)
+  )
+
+adj_different_cm.tidy.plot
+```
+
+```{r adj_different_cm.tidy.plot ggsave}
+ggsave(
+  paste("RRRplot_maltreatment_adj", date,".png"),
+  plot = adj_different_cm.tidy.plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 4,
+  height = 6,
+  units = "in",
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
+
+
+
+## Fully adjusted RR plot for sociodemographic and bias variables
+```{r Risk ratios for fully adjusted different exposure, fig.height=4, fig.width=6}
+fulladj_different_cm.tidy.filtered <- 
+  fulladj_different_cm.tidy %>%
+  filter(term != "(Intercept)") %>%
+  filter(term != "age") %>%
+  filter(term != "sexFemale") %>%
+  filter(term != "ethnicity_binaryMinoritised ethnicity") %>%
+  filter(term != "sexuality_binaryMinoritised sexuality") %>%
+  filter(term != "relationship_binaryNot married or in a relationship") %>%
+  filter(term != "education_binaryFurther education") %>%
+  filter(term != "gad7.sum_score") %>%
+  filter(term != "phq9.sum_score") %>%
+  filter(term != "audit.sum_score") %>%
+  filter(!str_detect(y.level, "ED_hierarchical")) %>%
+    mutate(
+    low = conf.low,
+    high = conf.high,
+    term.short = str_remove(term, pattern = "Any_maltreatment_count_cat"),
+    term.short = fct_recode(term, "Sexual abuse" = "Childhood_sexual_abuse_binaryChildhood sexual abuse", 
+                            "Emotional abuse" = "Childhood_emotional_abuse_binaryChildhood emotional abuse", 
+                            "Physical abuse" = "Childhood_physical_abuse_binaryChildhood physical abuse", 
+                            "Emotional neglect" = "Childhood_emotional_neglect_binaryChildhood emotional neglect", 
+                            "Physical neglect" = "Childhood_physical_neglect_binaryChildhood physical neglect"))
+
+fulladj_different_cm.tidy.filtered.plot <-
+  ggplot(fulladj_different_cm.tidy.filtered,
+       aes(x = term.short,
+           y = estimate,
+           ymin = low,
+           ymax = high,
+           height = 0,
+           colour = y.level)) +
+#  ggtitle("Multinomial regression of lifetime eating disorder on self-report exposure to different types of maltreatment") +
+#  labs(subtitle = "Fully adjusted for sociodemographic and reporting bias covariates including current depression and anxiety symptoms and alcohol use") +
+  labs(subtitle = "Fully adjusted model (sociodemographic & reporting bias covariates)") +
+#  xlab("Self-reported childhood maltreatment") +
+  xlab("") +
+  ylab("Relative risk ratio (RRR)") +
+  geom_point() +
+  geom_hline(yintercept = 1, linetype='dotted', col = 'black') +
+  geom_errorbar() +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.text.x = element_blank()
+#        axis.text.x = element_text(angle = 90, hjust = 1)
+        ) +
+  facet_grid(~y.level) +
+  expand_limits(x = 0, y = c(0.4, 2)) +
+  scale_y_continuous(
+    trans = log_trans(),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2)
+  )
+
+fulladj_different_cm.tidy.filtered.plot
+```
+
+```{r fulladj_different_cm.tidy.filtered.plot ggsave}
+ggsave(
+  paste0("RRplot_maltreatment_fullyadjusted", date, ".png"),
+  plot = fulladj_different_cm.tidy.filtered.plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 4,
+  height = 6,
+  units = "in",
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
+
+
+```{r Combine relative risk ratio plots, fig.height=8, fig.width=6}
+multinomial_models_plot <-
+fulladj_different_cm.tidy.filtered.plot /
+  adj_different_cm.tidy.plot /
+  unadj_different_cm.tidy.filtered.plot
+
+multinomial_models_plot  
+```
+
+```{r fulladj_different_cm.tidy.filtered.plot ggsave final}
+ggsave(
+  paste0("RRRplot_maltreatment_3models", date, ".png"),
+  plot = multinomial_models_plot,
+  device = "png",
+  path = "../../plots",
+  scale = 1,
+  width = 8,
+  height = 14,
+  units = "in",
+  dpi = 300,
+  limitsize = TRUE
+  )
+```
